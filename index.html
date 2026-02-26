@@ -2,121 +2,131 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>文字麻将 - UI 优化版</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>文字麻将 - 布局修复版</title>
     <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
     <style>
         :root { --mj-green: #1a472a; --tile-bg: #fff; --accent: #ffeb3b; --danger: #ff4444; --blue: #2196f3; --gold: #ffd700; --ready: #4caf50; }
-        body { font-family: -apple-system, sans-serif; background: #111; color: white; margin: 0; padding: 10px; min-height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
         
-        .screen { display: none; flex-direction: column; flex: 1; }
+        /* 核心修复：使用 min-height 填充，并增加底部安全距离 */
+        body { 
+            font-family: -apple-system, sans-serif; 
+            background: #111; 
+            color: white; 
+            margin: 0; 
+            padding: 10px 10px calc(20px + env(safe-area-inset-bottom)); /* 适配 iOS 底部横条 */
+            height: 100vh; 
+            display: flex; 
+            flex-direction: column; 
+            box-sizing: border-box;
+            overflow: hidden; 
+        }
+        
+        .screen { display: none; flex-direction: column; flex: 1; height: 100%; overflow: hidden; }
         .active-screen { display: flex; }
 
-        /* 输入框优化：更大更易点 */
+        /* 输入框样式 */
         input[type="number"] { 
-            background: #000; 
-            color: #fff; 
-            border: 2px solid #555; 
-            padding: 18px; 
-            border-radius: 12px; 
-            width: 85%; 
-            text-align: center; 
-            font-size: 1.5rem; 
-            margin-bottom: 15px;
-            outline: none;
+            background: #000; color: #fff; border: 2px solid #555; padding: 15px; 
+            border-radius: 12px; width: 80%; text-align: center; font-size: 1.3rem; 
+            margin-bottom: 15px; outline: none;
         }
-        input[type="number"]:focus { border-color: var(--accent); }
 
-        /* 牌池区域 */
-        #pool-area { height: 110px; background: rgba(255,255,255,0.08); border: 1px solid #444; border-radius: 12px; padding: 8px; display: flex; flex-wrap: wrap; align-content: flex-start; gap: 6px; overflow-y: auto; margin-bottom: 10px; }
+        /* 牌池与操作区：动态分配剩余高度 */
+        #pool-area { height: 100px; background: rgba(255,255,255,0.08); border: 1px solid #444; border-radius: 12px; padding: 8px; display: flex; flex-wrap: wrap; align-content: flex-start; gap: 5px; overflow-y: auto; margin-bottom: 10px; }
         
-        /* 玩家操作区 */
-        .my-side { background: #222; border: 2px solid #444; padding: 15px; border-radius: 20px; flex: 1; display: flex; flex-direction: column; }
+        .my-side { background: #222; border: 2px solid #444; padding: 12px; border-radius: 20px; flex: 1; display: flex; flex-direction: column; justify-content: space-between; overflow: hidden; }
         .my-side.active { border-color: var(--accent); background: var(--mj-green); }
-        .remind-draw { animation: flash-red 0.8s infinite; border-color: var(--danger) !important; }
-        @keyframes flash-red { 50% { box-shadow: 0 0 15px var(--danger); } }
 
-        .hand { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin: 10px 0; min-height: 90px; }
-        .tile { width: 38px; height: 52px; background: var(--tile-bg); color: #000; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 1.4rem; font-weight: bold; box-shadow: 0 4px #999; border: 2px solid transparent; }
-        .tile.selected { border-color: var(--blue); transform: translateY(-8px); background: #f0f8ff; }
-        .tile.pool { width: 26px; height: 36px; font-size: 0.9rem; box-shadow: 0 1px #666; color: #000; }
-
-        /* 按钮组优化：高度适中 */
-        .btn-row { display: flex; gap: 8px; margin-bottom: 10px; }
-        button { border: none; border-radius: 12px; font-weight: bold; cursor: pointer; transition: 0.2s; flex: 1; height: 48px; font-size: 1rem; }
-        button:disabled { opacity: 0.15; cursor: not-allowed; }
+        .hand { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; margin: 5px 0; min-height: 80px; overflow-y: auto; }
         
-        /* 大厅专用小按钮 */
-        .btn-lobby { height: 42px; font-size: 0.95rem; margin-top: 5px; }
+        /* 牌样式微调：适配小屏幕 */
+        .tile { width: 36px; height: 50px; background: var(--tile-bg); color: #000; border-radius: 6px; display: flex; align-items: center; justify-content: center; font-size: 1.3rem; font-weight: bold; box-shadow: 0 3px #999; border: 2px solid transparent; }
+        .tile.selected { border-color: var(--blue); transform: translateY(-5px); background: #f0f8ff; }
+        .tile.pool { width: 24px; height: 34px; font-size: 0.8rem; box-shadow: 0 1px #666; }
+
+        /* 按钮组修复：紧凑型设计 */
+        .btn-row { display: flex; gap: 8px; margin-bottom: 8px; }
+        button { border: none; border-radius: 12px; font-weight: bold; cursor: pointer; flex: 1; height: 44px; font-size: 0.95rem; }
+        button:disabled { opacity: 0.15; }
+        
+        /* 大厅按钮专用高度 */
+        .btn-lobby-action { height: 50px; font-size: 1.1rem; margin-bottom: 10px; }
         
         .btn-draw { background: var(--accent); color: #000; }
-        .btn-discard { background: var(--blue); color: white; flex: 1.5; }
+        .btn-discard { background: var(--blue); color: white; flex: 1.4; }
         .btn-win { background: var(--gold); color: #000; }
         .btn-secondary { background: #444; color: white; }
 
-        #vote-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.96); z-index: 100; display: none; flex-direction: column; align-items: center; justify-content: center; padding: 20px; }
-        .vote-card { background: #2c2c2c; padding: 25px; border-radius: 20px; width: 100%; text-align: center; border: 2px solid var(--gold); }
-        .vote-hand { font-size: 2rem; color: var(--gold); margin: 20px 0; font-weight: bold; word-break: break-all; }
+        /* 投票弹窗增加 z-index 确保在最前 */
+        #vote-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.96); z-index: 1000; display: none; flex-direction: column; align-items: center; justify-content: center; padding: 20px; box-sizing: border-box; }
+        .vote-card { background: #2c2c2c; padding: 20px; border-radius: 20px; width: 100%; text-align: center; border: 2px solid var(--gold); }
+        .vote-hand { font-size: 1.8rem; color: var(--gold); margin: 15px 0; font-weight: bold; line-height: 1.3; }
 
-        #win-banner { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 200; display: none; pointer-events: none; }
-        .win-title { font-size: 5rem; font-weight: 900; background: linear-gradient(90deg, #ffd700, #fff, #ffd700); background-size: 200%; -webkit-background-clip: text; -webkit-text-fill-color: transparent; animation: shine 1.2s infinite; filter: drop-shadow(0 0 20px var(--gold)); }
+        #win-banner { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 2000; display: none; pointer-events: none; width: 100%; text-align: center; }
+        .win-title { font-size: 4rem; font-weight: 900; background: linear-gradient(90deg, #ffd700, #fff, #ffd700); background-size: 200%; -webkit-background-clip: text; -webkit-text-fill-color: transparent; animation: shine 1.2s infinite; filter: drop-shadow(0 0 15px var(--gold)); }
         @keyframes shine { to { background-position: 200% center; } }
     </style>
 </head>
 <body>
 
     <div id="login-screen" class="screen active-screen">
-        <div style="background:#222; padding:35px 20px; border-radius:20px; text-align:center;">
-            <h2 style="margin:0 0 25px 0; letter-spacing:2px;">🀄️ 文字麻将</h2>
-            <input type="number" id="room-input" placeholder="输入4位房间号">
-            <button onclick="joinGame()" class="btn-draw" style="width:100%; height: 55px; border-radius:12px; font-size:1.2rem;">进入房间</button>
+        <div style="background:#222; padding:30px 15px; border-radius:20px; text-align:center; margin: auto 0;">
+            <h2 style="margin-bottom:20px;">🀄️ 文字麻将</h2>
+            <input type="number" id="room-input" placeholder="输入房间号">
+            <button onclick="joinGame()" class="btn-draw" style="width:100%; height: 50px; font-size:1.1rem;">进入房间</button>
         </div>
     </div>
 
     <div id="lobby-screen" class="screen">
-        <div style="background:#222; padding:20px; border-radius:20px; flex:1; display:flex; flex-direction:column;">
+        <div style="background:#222; padding:15px; border-radius:20px; flex:1; display:flex; flex-direction:column; overflow:hidden;">
             <h3 style="margin-top:0;">待战区 (房号: <span id="room-id-display"></span>)</h3>
-            <div id="player-list" style="flex:1; overflow-y:auto;"></div>
-            <div style="padding-top:15px;">
-                <button id="ready-btn" class="btn-draw btn-lobby" style="background:var(--ready); color:white; width:100%;" onclick="doReady()">准备就绪</button>
-                <button id="start-btn" class="btn-draw btn-lobby" style="display:none; width:100%; margin-top:10px;" onclick="doStart()">开始游戏</button>
+            <div id="player-list" style="flex:1; overflow-y:auto; margin-bottom:15px;"></div>
+            <div style="padding-bottom: 20px;">
+                <button id="ready-btn" class="btn-draw btn-lobby-action" style="background:var(--ready); color:white; width:100%;" onclick="doReady()">准备就绪</button>
+                <button id="start-btn" class="btn-draw btn-lobby-action" style="display:none; width:100%;" onclick="doStart()">开始游戏</button>
             </div>
         </div>
     </div>
 
     <div id="game-screen" class="screen">
-        <div id="status-info" style="text-align:center; padding:5px; font-size:0.8rem; color:#888;"></div>
+        <div id="status-info" style="text-align:center; padding:5px; font-size:0.75rem; color:#888;"></div>
         <div id="pool-area"></div>
         <div id="my-zone" class="my-side">
-            <div id="turn-tip" style="text-align:center; font-weight:bold; margin-bottom:10px;"></div>
-            <div class="hand" id="my-hand"></div>
-            <div class="btn-row">
-                <button class="btn-draw" id="btn-draw" onclick="doDraw()">摸牌</button>
-                <button class="btn-discard" id="btn-discard" onclick="doDiscard()" disabled>出字</button>
-                <button class="btn-win" id="btn-win" onclick="doWin()" disabled>胡！</button>
+            <div>
+                <div id="turn-tip" style="text-align:center; font-weight:bold; font-size:0.9rem; margin-bottom:8px;"></div>
+                <div class="hand" id="my-hand"></div>
             </div>
-            <div class="btn-row">
-                <button class="btn-secondary" id="btn-eat" onclick="doEat()">吃牌</button>
-                <button class="btn-secondary" style="background:var(--danger)" onclick="doExit()">退出</button>
+            
+            <div style="margin-top: auto; padding-bottom: 10px;">
+                <div class="btn-row">
+                    <button class="btn-draw" id="btn-draw" onclick="doDraw()">摸牌</button>
+                    <button class="btn-discard" id="btn-discard" onclick="doDiscard()" disabled>出字</button>
+                    <button class="btn-win" id="btn-win" onclick="doWin()" disabled>胡！</button>
+                </div>
+                <div class="btn-row">
+                    <button class="btn-secondary" id="btn-eat" onclick="doEat()">吃牌</button>
+                    <button class="btn-secondary" style="background:var(--danger)" onclick="doExit()">退出</button>
+                </div>
             </div>
         </div>
     </div>
 
     <div id="vote-overlay">
         <div class="vote-card">
-            <h3 id="vote-title">评审中...</h3>
+            <h3 id="vote-title" style="margin-top:0;">评审中...</h3>
             <div class="vote-hand" id="vote-hand-text"></div>
             <div id="vote-btns" style="display:flex; gap:10px;">
-                <button class="btn-draw" style="background:var(--ready); color:white;" onclick="submitVote('yes')">通顺</button>
-                <button class="btn-draw" style="background:var(--danger); color:white;" onclick="submitVote('no')">不通顺</button>
+                <button class="btn-draw" style="background:var(--ready); color:white; height: 50px;" onclick="submitVote('yes')">通顺</button>
+                <button class="btn-draw" style="background:var(--danger); color:white; height: 50px;" onclick="submitVote('no')">不通顺</button>
             </div>
-            <p id="vote-tip" style="margin-top:15px; color:#aaa;">等待全员评审...</p>
+            <p id="vote-tip" style="margin-top:10px; color:#aaa; font-size:0.85rem;">等待其他玩家投票...</p>
         </div>
     </div>
-    <div id="win-banner"><div class="win-title">胡了！</div></div>
+
+    <div id="win-banner"><div class="win-title">和牌！</div></div>
 
 <script>
-    // 逻辑部分完全沿用上个稳定版本
     const CHARS = "我你他她咱谁们大家的人的了是不都在有没要会想看听写讲说拿走跑去玩笑哭爱恨怕请问谢对起给打找买卖用开关就才又还也只很最真太快慢大中小多多少好坏美丑".split("");
     let client, roomId, myId = "P_" + Math.random().toString(16).slice(2, 8);
     let state = { gameStarted: false, players: [], hands: {}, pool: [], turnIdx: 0, vote: null, winners: [] };
@@ -127,7 +137,7 @@
         if (!roomId) return;
         client = mqtt.connect('wss://broker.emqx.io:8084/mqtt');
         client.on('connect', () => {
-            client.subscribe(`mj_ui_v3_${roomId}`);
+            client.subscribe(`mj_layout_v4_${roomId}`);
             document.getElementById('room-id-display').innerText = roomId;
             showScreen('lobby-screen');
             publish('JOIN', { id: myId });
@@ -141,7 +151,7 @@
     }
 
     function publish(type, data) {
-        if (client) client.publish(`mj_ui_v3_${roomId}`, JSON.stringify({ from: myId, type, data }));
+        if (client) client.publish(`mj_layout_v4_${roomId}`, JSON.stringify({ from: myId, type, data }));
     }
 
     function handleMessage(msg) {
@@ -176,7 +186,7 @@
                 setTimeout(() => b.style.display = 'none', 3000);
                 state.winners.push(msg.data.winnerId);
                 if (state.players[state.turnIdx].id === msg.data.winnerId) moveToNextPlayer();
-            } else { alert("评审不通过！"); }
+            }
             state.vote = null;
             renderAll();
             if (state.players[0].id === myId) publish('UPDATE', state);
@@ -191,8 +201,7 @@
             count++;
         }
         state.turnIdx = next;
-        hasActioned = false;
-        selectedIdx = -1;
+        hasActioned = false; selectedIdx = -1;
     }
 
     function doReady() {
@@ -213,8 +222,7 @@
 
     function doDiscard() {
         if (selectedIdx === -1) return;
-        const tile = state.hands[myId].splice(selectedIdx, 1)[0];
-        state.pool.push(tile);
+        state.pool.push(state.hands[myId].splice(selectedIdx, 1)[0]);
         moveToNextPlayer();
         publish('UPDATE', state);
     }
@@ -266,21 +274,18 @@
             const turnPlayer = state.players[state.turnIdx];
             const isMyTurn = turnPlayer.id === myId;
             const isWin = state.winners.includes(myId);
-
-            document.getElementById('status-info').innerText = isWin ? "🏆 你已胜出！" : `当前：玩家 ${state.turnIdx + 1}`;
+            document.getElementById('status-info').innerText = isWin ? "🏆 观战模式" : `玩家 ${state.turnIdx + 1} 行动中`;
             document.getElementById('my-hand').innerHTML = (state.hands[myId]||[]).map((t, i) => `
                 <div class="tile ${selectedIdx===i?'selected':''}" onclick="handleTileClick(${i})">${t}</div>
             `).join("");
             document.getElementById('pool-area').innerHTML = state.pool.map(t => `<div class="tile pool">${t}</div>`).join("");
-            
             const zone = document.getElementById('my-zone');
             if (isMyTurn && !isWin) {
                 zone.classList.add('active');
-                document.getElementById('turn-tip').innerText = hasActioned ? "出牌或胡牌" : "请摸牌";
-                hasActioned ? zone.classList.remove('remind-draw') : zone.classList.add('remind-draw');
+                document.getElementById('turn-tip').innerText = hasActioned ? "请出牌" : "请摸牌";
             } else {
-                zone.classList.remove('active', 'remind-draw');
-                document.getElementById('turn-tip').innerText = isWin ? "坐等发奖" : "请等待...";
+                zone.classList.remove('active');
+                document.getElementById('turn-tip').innerText = isWin ? "已胡牌" : "等待中";
             }
             document.getElementById('btn-draw').disabled = !isMyTurn || hasActioned || isWin;
             document.getElementById('btn-discard').disabled = !isMyTurn || !hasActioned || isWin;
@@ -295,8 +300,8 @@
         overlay.style.display = 'flex';
         document.getElementById('vote-hand-text').innerText = state.vote.hand.join("");
         document.getElementById('vote-title').innerText = `玩家 ${state.players.findIndex(p=>p.id===state.vote.winner)+1} 申请胡牌`;
-        const alreadyVoted = state.vote.votes[myId] || state.vote.winner === myId;
-        document.getElementById('vote-btns').style.display = alreadyVoted ? 'none' : 'flex';
+        const voted = state.vote.votes[myId] || state.vote.winner === myId;
+        document.getElementById('vote-btns').style.display = voted ? 'none' : 'flex';
     }
 </script>
 </body>
