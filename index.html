@@ -2,219 +2,169 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>文字麻将 - 插入理牌版</title>
-    <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
+    <title>简约文字麻将</title>
     <style>
-        :root { --mj-green: #1a472a; --tile-bg: #fff; --accent: #ffeb3b; --danger: #ff5252; --blue: #2196f3; }
-        body { font-family: sans-serif; background: #111; color: white; margin: 0; padding: 10px; min-height: 100vh; display: flex; flex-direction: column; }
-        
-        .setup-box { background: #222; padding: 15px; border-radius: 12px; border: 1px solid #444; margin-bottom: 10px; text-align: center; }
-        input { background: #000; color: #fff; border: 1px solid #555; padding: 12px; border-radius: 8px; width: 60%; font-size: 1rem; }
-
-        #pool-area { height: 120px; background: rgba(255,255,255,0.05); border: 1px solid #333; border-radius: 8px; padding: 8px; display: flex; flex-wrap: wrap; align-content: flex-start; gap: 4px; overflow-y: auto; margin-bottom: 10px; }
-        .my-side { background: #222; border: 2px solid #444; padding: 15px; border-radius: 20px; flex: 1; display: flex; flex-direction: column; position: relative; }
-        .my-side.active { border-color: var(--accent); background: var(--mj-green); }
-        
-        /* 摸牌红光闪烁 */
-        .remind-draw { border: 2px solid var(--danger) !important; animation: blink 1s infinite; }
-        @keyframes blink { 0% { box-shadow: 0 0 5px var(--danger); } 50% { box-shadow: 0 0 20px var(--danger); } 100% { box-shadow: 0 0 5px var(--danger); } }
-
-        .hand { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; margin: 15px 0; min-height: 80px; }
-        .tile { width: 38px; height: 52px; background: var(--tile-bg); color: #000; border-radius: 6px; display: flex; align-items: center; justify-content: center; font-size: 1.3rem; font-weight: bold; box-shadow: 0 4px #999; border: 2px solid transparent; transition: transform 0.1s; }
-        
-        /* 选中状态：被选中的文字 */
-        .tile.selected { border-color: var(--blue); transform: translateY(-12px); background: #e3f2fd; box-shadow: 0 8px 15px rgba(0,0,0,0.3); }
-        .tile.pool { width: 26px; height: 36px; font-size: 0.8rem; box-shadow: 0 1px #666; opacity: 0.9; }
-
-        .controls { display: flex; gap: 10px; }
-        button { flex: 1; padding: 15px 0; border: none; border-radius: 10px; font-weight: bold; font-size: 1rem; cursor: pointer; }
-        .btn-draw { background: var(--accent); color: #000; }
-        .btn-action { background: var(--blue); color: white; }
-        button:disabled { opacity: 0.2; cursor: not-allowed; }
-        
-        #info-text { text-align:center; font-size:0.85rem; color:#aaa; margin-bottom:5px; height: 1.2rem; }
-        #player-list { font-size: 0.7rem; color: #666; text-align: center; margin-bottom: 5px; }
+        body { font-family: 'Microsoft YaHei', sans-serif; background-color: #2d5a27; color: white; display: flex; flex-direction: column; align-items: center; padding: 20px; }
+        #game-board { width: 100%; max-width: 800px; background: rgba(0,0,0,0.2); padding: 20px; border-radius: 15px; }
+        .section { margin-bottom: 20px; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 10px; }
+        .tile-container { display: flex; flex-wrap: wrap; gap: 8px; min-height: 50px; }
+        .tile {
+            width: 40px; height: 60px; background: #fff; color: #000;
+            border-radius: 5px; display: flex; align-items: center; justify-content: center;
+            font-weight: bold; font-size: 1.2rem; cursor: pointer; border: 2px solid #ccc;
+            transition: transform 0.2s; user-select: none;
+        }
+        .tile:hover { transform: translateY(-5px); background: #f0f0f0; }
+        .tile.new-draw { border-color: #ffeb3b; background: #fffde7; }
+        .tile.discarded { width: 30px; height: 45px; font-size: 0.9rem; background: #eee; cursor: default; }
+        .info { color: #ffeb3b; margin-bottom: 10px; }
+        button { padding: 10px 20px; font-size: 1rem; cursor: pointer; background: #4caf50; color: white; border: none; border-radius: 5px; }
+        button:hover { background: #45a049; }
     </style>
 </head>
 <body>
 
-    <div id="login-screen" class="setup-box">
-        <h3>文字麻将 (插入理牌版)</h3>
-        <input type="number" id="room-input" placeholder="输入房间号">
-        <button onclick="joinGame()" style="background:var(--accent); width:100%; color:#000; margin-top:10px;">进入房间</button>
-    </div>
+    <h1>🀄️ 文字麻将 (练习模式)</h1>
+    <div class="info">规则：点击手牌即可弃牌。目标：凑齐整齐的牌型。</div>
+    
+    <div id="game-board">
+        <div class="section">
+            <p>牌堆剩余: <span id="deck-count">0</span></p>
+            <button onclick="initGame()">重新洗牌</button>
+        </div>
 
-    <div id="game-screen" style="display:none; flex:1; flex-direction:column;">
-        <div id="player-list">正在连接玩家...</div>
-        <div id="pool-area"></div>
-        
-        <div id="my-zone" class="my-side">
-            <div id="info-text">等待同步...</div>
-            <div class="hand" id="my-hand"></div>
-            
-            <div class="controls">
-                <button class="btn-draw" id="btn-draw" onclick="doDraw()">摸牌</button>
-                <button class="btn-action" id="btn-action" onclick="doDiscard()" disabled>出牌</button>
-            </div>
-            
-            <div style="display:flex; justify-content: space-between; margin-top:15px;">
-                <button onclick="doEat()" id="btn-eat" style="padding:8px; font-size:0.7rem; background:#444; color:white; flex:none; width:60px;">吃牌</button>
-                <button onclick="forceReset()" style="background:none; color:#444; font-size:0.6rem; border:1px solid #333; flex:none;">全员重置</button>
-            </div>
+        <div class="section">
+            <p>弃牌池：</p>
+            <div id="discards" class="tile-container"></div>
+        </div>
+
+        <div class="section">
+            <p>你的手牌：</p>
+            <div id="hand" class="tile-container"></div>
+        </div>
+
+        <div class="section">
+            <p>刚刚摸到的牌：</p>
+            <div id="new-tile" class="tile-container"></div>
         </div>
     </div>
 
-<script>
-    const CHARS = "我你他她咱谁们大家的人的了是不都在有没要会想看听写讲说拿走跑去玩笑哭爱恨怕请问谢对起给打找买卖用开关就才又还也只很最真太快慢大中小多多少好坏美丑".split("");
-    let client, roomId, myId = "P_" + Math.random().toString(16).slice(2, 8);
-    let state = { players: [], hands: {}, pool: [], turnIdx: 0 };
-    let selectedIdx = -1, hasActioned = false;
+    <script>
+        const TYPES = ['万', '筒', '条'];
+        const NUMS = ['一', '二', '三', '四', '五', '六', '七', '八', '九'];
+        const SPECIALS = ['东', '南', '西', '北', '中', '发', '白'];
+        
+        let deck = [];
+        let hand = [];
+        let discards = [];
+        let lastDraw = null;
 
-    function joinGame() {
-        roomId = document.getElementById('room-input').value;
-        if (!roomId) return;
-        client = mqtt.connect('wss://broker.emqx.io:8084/mqtt');
-        client.on('connect', () => {
-            client.subscribe("mj_insert_v4_" + roomId);
-            document.getElementById('login-screen').style.display = 'none';
-            document.getElementById('game-screen').style.display = 'flex';
-            publish('JOIN', { id: myId });
-        });
-        client.on('message', (t, p) => handleMessage(JSON.parse(p.toString())));
-    }
-
-    function handleMessage(msg) {
-        if (msg.type === 'JOIN') {
-            if (!state.players.includes(msg.data.id)) {
-                state.players.push(msg.data.id);
-                if (state.players[0] === myId) {
-                    if (!state.hands[msg.data.id]) {
-                        state.hands[msg.data.id] = Array.from({length:13}, () => CHARS[Math.floor(Math.random()*CHARS.length)]);
-                    }
-                    publish('SYNC', state);
+        // 生成一副牌 (136张)
+        function createDeck() {
+            let newDeck = [];
+            // 万筒条
+            for (let type of TYPES) {
+                for (let num of NUMS) {
+                    for (let i = 0; i < 4; i++) newDeck.push(num + type);
                 }
             }
-        } else if (msg.type === 'SYNC' || msg.type === 'UPDATE') {
-            state = msg.data;
-            if (!state.hands[myId]) {
-                 state.hands[myId] = Array.from({length:13}, () => CHARS[Math.floor(Math.random()*CHARS.length)]);
+            // 字牌
+            for (let s of SPECIALS) {
+                for (let i = 0; i < 4; i++) newDeck.push(s);
             }
+            return newDeck.sort(() => Math.random() - 0.5);
+        }
+
+        // 排序逻辑
+        function sortHand(cards) {
+            const order = [...SPECIALS];
+            return cards.sort((a, b) => {
+                const getVal = (s) => {
+                    if (s.length === 1) return 100 + order.indexOf(s);
+                    let typeIdx = TYPES.indexOf(s[1]);
+                    let numIdx = NUMS.indexOf(s[0]);
+                    return typeIdx * 10 + numIdx;
+                };
+                return getVal(a) - getVal(b);
+            });
+        }
+
+        function initGame() {
+            deck = createDeck();
+            discards = [];
+            lastDraw = null;
+            // 初始发13张牌
+            hand = deck.splice(0, 13);
+            sortHand(hand);
+            drawTile();
             render();
         }
-    }
 
-    function publish(type, data) {
-        if (client) client.publish("mj_insert_v4_" + roomId, JSON.stringify({ from: myId, type, data }));
-    }
-
-    function doDraw() {
-        state.hands[myId].push(CHARS[Math.floor(Math.random()*CHARS.length)]);
-        hasActioned = true;
-        render();
-    }
-
-    function doEat() {
-        const turnPlayerId = state.players[state.turnIdx];
-        if (turnPlayerId !== myId || hasActioned || state.pool.length === 0) return alert("不可吃牌");
-        state.hands[myId].push(state.pool.pop());
-        hasActioned = true;
-        render();
-    }
-
-    function doDiscard() {
-        if (selectedIdx === -1) return alert("请先选中要打出的牌");
-        const tile = state.hands[myId].splice(selectedIdx, 1)[0];
-        state.pool.push(tile);
-        state.turnIdx = (state.turnIdx + 1) % state.players.length;
-        hasActioned = false;
-        selectedIdx = -1;
-        publish('UPDATE', state);
-        render();
-    }
-
-    // 💡 核心修改：插入逻辑 (Move A to before B)
-    function handleTileClick(i) {
-        const turnPlayerId = state.players[state.turnIdx];
-        const isMyTurn = turnPlayerId === myId;
-
-        if (selectedIdx === -1) {
-            // 第一步：选中
-            selectedIdx = i;
-        } else if (selectedIdx === i) {
-            // 再次点击同一张：取消选中
-            selectedIdx = -1;
-        } else {
-            // 第二步：执行插入逻辑
-            const hand = state.hands[myId];
-            const movedItem = hand.splice(selectedIdx, 1)[0]; // 移出被选中的牌
-            
-            // 如果原本选中的在插入点后面，splice 后索引不变；如果在前面，索引需要相应变化
-            // 但 JavaScript 的 splice 配合新索引会自动处理
-            hand.splice(i, 0, movedItem); 
-            
-            selectedIdx = -1; // 完成后重置
-            if (isMyTurn) publish('UPDATE', state); // 同步到云端
-        }
-        render();
-    }
-
-    function render() {
-        const turnPlayerId = state.players[state.turnIdx];
-        const isMyTurn = turnPlayerId === myId;
-        const myHand = state.hands[myId] || [];
-        
-        document.getElementById('player-list').innerText = `玩家: ${state.players.length} | 回合: ${isMyTurn ? '● 你' : '○ 他人'}`;
-
-        const h = document.getElementById('my-hand');
-        h.innerHTML = '';
-        myHand.forEach((t, i) => {
-            const el = document.createElement('div');
-            el.className = `tile ${selectedIdx === i ? 'selected' : ''}`;
-            el.innerText = t;
-            el.onclick = () => handleTileClick(i);
-            h.appendChild(el);
-        });
-
-        const p = document.getElementById('pool-area');
-        p.innerHTML = '';
-        state.pool.forEach(t => {
-            const d = document.createElement('div');
-            d.className = 'tile pool'; d.innerText = t;
-            p.appendChild(d);
-        });
-
-        const zone = document.getElementById('my-zone');
-        const info = document.getElementById('info-text');
-        
-        if (isMyTurn) {
-            zone.classList.add('active');
-            if (!hasActioned) {
-                zone.classList.add('remind-draw');
-                info.innerHTML = "<span style='color:var(--danger)'>🚨 请先摸牌或吃牌！</span>";
+        function drawTile() {
+            if (deck.length > 0) {
+                lastDraw = deck.shift();
             } else {
-                zone.classList.remove('remind-draw');
-                info.innerText = "🟢 点击文字可调整位置";
+                alert("牌抓完了！");
             }
-        } else {
-            zone.className = 'my-side';
-            info.innerText = "⚪ 等待其他玩家...";
         }
 
-        document.getElementById('btn-draw').disabled = !isMyTurn || hasActioned;
-        document.getElementById('btn-action').disabled = !isMyTurn || !hasActioned;
-        document.getElementById('btn-eat').disabled = !isMyTurn || hasActioned || state.pool.length === 0;
-    }
+        function discard(index, isNewTile = false) {
+            let removed;
+            if (isNewTile) {
+                removed = lastDraw;
+                lastDraw = null;
+            } else {
+                removed = hand.splice(index, 1);
+                // 把刚才摸的牌放入手牌
+                if (lastDraw) {
+                    hand.push(lastDraw);
+                    lastDraw = null;
+                }
+            }
+            discards.push(removed);
+            sortHand(hand);
+            drawTile();
+            render();
+        }
 
-    function forceReset() {
-        if(!confirm("确定重置吗？")) return;
-        state.pool = [];
-        state.players.forEach(pid => {
-            state.hands[pid] = Array.from({length:13}, () => CHARS[Math.floor(Math.random()*CHARS.length)]);
-        });
-        state.turnIdx = 0;
-        publish('UPDATE', state);
-    }
-</script>
+        function render() {
+            document.getElementById('deck-count').innerText = deck.length;
+            
+            // 渲染手牌
+            const handDiv = document.getElementById('hand');
+            handDiv.innerHTML = '';
+            hand.forEach((tile, index) => {
+                const el = document.createElement('div');
+                el.className = 'tile';
+                el.innerText = tile;
+                el.onclick = () => discard(index);
+                handDiv.appendChild(el);
+            });
+
+            // 渲染新摸的牌
+            const newTileDiv = document.getElementById('new-tile');
+            newTileDiv.innerHTML = '';
+            if (lastDraw) {
+                const el = document.createElement('div');
+                el.className = 'tile new-draw';
+                el.innerText = lastDraw;
+                el.onclick = () => discard(null, true);
+                newTileDiv.appendChild(el);
+            }
+
+            // 渲染弃牌
+            const discardDiv = document.getElementById('discards');
+            discardDiv.innerHTML = '';
+            discards.forEach(tile => {
+                const el = document.createElement('div');
+                el.className = 'tile discarded';
+                el.innerText = tile;
+                discardDiv.appendChild(el);
+            });
+        }
+
+        // 启动游戏
+        initGame();
+    </script>
 </body>
 </html>
