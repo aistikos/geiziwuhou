@@ -3,128 +3,129 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>文字麻将 - 实时对战版</title>
+    <title>文字麻将 - 实时联机版</title>
     <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
     <style>
         :root { --mj-green: #1a472a; --tile-bg: #fff; --accent: #ffeb3b; }
-        body { font-family: sans-serif; background: #111; color: white; margin: 0; padding: 10px; min-height: 100vh; display: flex; flex-direction: column; }
-        .panel { background: #222; padding: 15px; border-radius: 12px; border: 1px solid #444; margin-bottom: 10px; }
-        #pool-area { height: 100px; background: rgba(255,255,255,0.05); border: 1px solid #333; border-radius: 8px; padding: 8px; display: flex; flex-wrap: wrap; align-content: flex-start; gap: 4px; overflow-y: auto; margin-bottom: 10px; }
-        .my-side { background: #222; border: 2px solid #444; padding: 12px; border-radius: 15px; flex: 1; display: flex; flex-direction: column; }
-        .my-side.active { border-color: var(--accent); background: var(--mj-green); }
-        .hand { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; margin: 15px 0; min-height: 60px; }
-        .tile { width: 38px; height: 52px; background: var(--tile-bg); color: #000; border-radius: 5px; display: flex; align-items: center; justify-content: center; font-size: 1.3rem; font-weight: bold; box-shadow: 0 4px #999; border: 2px solid transparent; }
-        .tile.selected { border-color: #2196f3; transform: translateY(-8px); }
-        .tile.pool { width: 24px; height: 34px; font-size: 0.8rem; box-shadow: 0 1px #666; opacity: 0.8; }
-        button { padding: 12px; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; }
-        .btn-draw { background: var(--accent); color: #000; flex: 1; }
-        .btn-discard { background: #2196f3; color: white; flex: 1; }
-        input { background: #000; color: #fff; border: 1px solid #555; padding: 10px; border-radius: 5px; width: 60%; }
+        body { font-family: sans-serif; background: #111; color: white; margin: 0; padding: 10px; display: flex; flex-direction: column; min-height: 100vh; }
+        .setup-box { background: #222; padding: 15px; border-radius: 12px; border: 1px solid #444; margin-bottom: 10px; text-align: center; }
+        input { background: #000; color: #fff; border: 1px solid #555; padding: 12px; border-radius: 8px; width: 60%; font-size: 1rem; margin-bottom: 10px; }
+        #pool-area { height: 110px; background: rgba(255,255,255,0.05); border: 1px solid #333; border-radius: 8px; padding: 8px; display: flex; flex-wrap: wrap; align-content: flex-start; gap: 4px; overflow-y: auto; margin-bottom: 10px; }
+        .my-side { background: #222; border: 2px solid #444; padding: 15px; border-radius: 20px; flex: 1; display: flex; flex-direction: column; transition: 0.3s; }
+        .my-side.active { border-color: var(--accent); background: var(--mj-green); box-shadow: 0 0 20px rgba(0,0,0,0.5); }
+        .hand { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; margin: 20px 0; min-height: 60px; }
+        .tile { width: 40px; height: 55px; background: var(--tile-bg); color: #000; border-radius: 6px; display: flex; align-items: center; justify-content: center; font-size: 1.4rem; font-weight: bold; box-shadow: 0 4px #999; border: 2px solid transparent; user-select: none; }
+        .tile.selected { border-color: #2196f3; transform: translateY(-10px); }
+        .tile.pool { width: 26px; height: 36px; font-size: 0.9rem; box-shadow: 0 1px #666; opacity: 0.8; }
+        .controls { display: flex; gap: 10px; }
+        button { flex: 1; padding: 15px 0; border: none; border-radius: 10px; font-weight: bold; font-size: 1.1rem; cursor: pointer; }
+        button:disabled { opacity: 0.3; }
+        .btn-draw { background: var(--accent); color: #000; }
+        .btn-discard { background: #2196f3; color: white; }
     </style>
 </head>
 <body>
 
-    <div id="setup" class="panel">
-        <div style="font-size:0.8rem; color:#888;">输入任意数字房间号：</div>
-        <input type="number" id="room-input" placeholder="如 666">
-        <button onclick="initGame()" style="background:var(--accent); padding:10px 20px;">进入</button>
-        <div id="status" style="font-size:0.7rem; color:var(--accent); margin-top:5px;">未连接</div>
+    <div id="login-screen" class="setup-box">
+        <h3>文字麻将联机</h3>
+        <p style="color:#888; font-size:0.8rem;">约定一个数字房间号即可对战</p>
+        <input type="number" id="room-input" placeholder="输入房间号 (如: 666)">
+        <button onclick="joinGame()" style="background:var(--accent); width:100%; color:#000;">进入房间</button>
+        <div id="connect-status" style="margin-top:10px; font-size:0.7rem;"></div>
     </div>
 
-    <div id="pool-area"></div>
-
-    <div id="game-ui" style="display:none; flex:1; flex-direction:column;">
+    <div id="game-screen" style="display:none; flex:1; flex-direction:column;">
+        <div id="pool-area"></div>
         <div id="my-zone" class="my-side">
-            <div id="turn-info" style="text-align:center; font-size:0.8rem; color:#aaa; margin-bottom:10px;">等待中...</div>
+            <div id="info-text" style="text-align:center; font-size:0.9rem; color:#aaa; margin-bottom:10px;">正在连接云端...</div>
             <div class="hand" id="my-hand"></div>
-            <div style="display:flex; gap:10px;">
+            <div class="controls">
                 <button class="btn-draw" id="btn-draw" onclick="doDraw()" disabled>摸牌</button>
-                <button class="btn-discard" id="btn-discard" onclick="doDiscard()" disabled>确认出牌</button>
+                <button class="btn-discard" id="btn-discard" onclick="doDiscard()" disabled>出牌</button>
             </div>
+            <button onclick="location.reload()" style="margin-top:20px; background:none; color:#555; font-size:0.7rem; border:1px solid #333;">退出房间</button>
         </div>
     </div>
 
 <script>
     const CHARS = "我你他她咱谁们大家的人的了是不都在有没要会想看听写讲说拿走跑去玩笑哭爱恨怕请问谢对起给打找买卖用开关就才又还也只很最真太快慢大中小多多少好坏美丑".split("");
-    let client, roomId, myId = "UID_" + Math.random().toString(16).slice(2, 8);
-    let gameState = { players: {}, pool: [], turn: "" };
+    let client, roomId, myId = "P_" + Math.random().toString(16).slice(2, 8);
+    let state = { p1: null, p2: null, hands: {}, pool: [], turn: "" };
     let selectedIdx = -1, hasActioned = false;
 
-    function initGame() {
+    function joinGame() {
         roomId = document.getElementById('room-input').value;
-        if(!roomId) return;
+        if (!roomId) return alert("写个房间号");
         
-        // 使用公共免密 MQTT 服务器
+        document.getElementById('connect-status').innerText = "正在接入公共信令通道...";
+        
+        // 连接公共 MQTT 服务器 (EMQX 公共测试服务器，无需账号)
         client = mqtt.connect('wss://broker.emqx.io:8084/mqtt');
-        
+
         client.on('connect', () => {
-            document.getElementById('status').innerText = "已进入房间: " + roomId;
-            client.subscribe("mj_room_" + roomId);
-            document.getElementById('setup').style.display = 'none';
-            document.getElementById('game-ui').style.display = 'flex';
+            client.subscribe("txt_mj_" + roomId);
+            document.getElementById('login-screen').style.display = 'none';
+            document.getElementById('game-screen').style.display = 'flex';
             
-            // 进房广播
-            sendAction('JOIN', { id: myId });
+            // 广播：我进来了
+            publish('JOIN', { id: myId });
         });
 
-        client.on('message', (topic, message) => {
-            const msg = JSON.parse(message.toString());
-            handleMessage(msg);
+        client.on('message', (topic, payload) => {
+            const msg = JSON.parse(payload.toString());
+            if (msg.from === myId) return; // 忽略自己发出的
+            onMessage(msg);
         });
     }
 
-    function handleMessage(msg) {
-        if(msg.from === myId) return; // 忽略自己发的消息
-
-        if(msg.type === 'JOIN') {
-            // 如果我是房主（已经在房里），给新人发初始牌
-            if(gameState.turn === myId || gameState.turn === "") {
-                if(!gameState.players[msg.data.id]) {
-                    gameState.players[msg.data.id] = Array.from({length:13}, () => CHARS[Math.floor(Math.random()*CHARS.length)]);
+    function onMessage(msg) {
+        switch(msg.type) {
+            case 'JOIN':
+                // 如果我是第一个在房间里的，我当主控发牌
+                if (!state.p1 || state.p1 === myId) {
+                    state.p1 = myId;
+                    state.p2 = msg.data.id;
+                    state.hands[state.p1] = Array.from({length:13}, () => CHARS[Math.floor(Math.random()*CHARS.length)]);
+                    state.hands[state.p2] = Array.from({length:13}, () => CHARS[Math.floor(Math.random()*CHARS.length)]);
+                    state.turn = myId;
+                    publish('SYNC', state);
                 }
-                if(!gameState.players[myId]) {
-                    gameState.players[myId] = Array.from({length:13}, () => CHARS[Math.floor(Math.random()*CHARS.length)]);
-                    gameState.turn = myId;
-                }
-                sendAction('SYNC', gameState);
-            }
-        } else if(msg.type === 'SYNC') {
-            gameState = msg.data;
-            render();
-        } else if(msg.type === 'ACTION') {
-            gameState = msg.data;
-            render();
+                break;
+            case 'SYNC':
+            case 'UPDATE':
+                state = msg.data;
+                render();
+                break;
         }
     }
 
-    function sendAction(type, data) {
-        if(client) client.publish("mj_room_" + roomId, JSON.stringify({ from: myId, type, data }));
+    function publish(type, data) {
+        client.publish("txt_mj_" + roomId, JSON.stringify({ from: myId, type, data }));
     }
 
     function doDraw() {
-        gameState.players[myId].push(CHARS[Math.floor(Math.random()*CHARS.length)]);
+        state.hands[myId].push(CHARS[Math.floor(Math.random()*CHARS.length)]);
         hasActioned = true;
         render();
     }
 
     function doDiscard() {
-        if(selectedIdx === -1) return alert("选牌");
-        const tile = gameState.players[myId].splice(selectedIdx, 1)[0];
-        gameState.pool.push(tile);
+        if (selectedIdx === -1) return alert("先选一张牌");
+        const tile = state.hands[myId].splice(selectedIdx, 1)[0];
+        state.pool.push(tile);
         
-        // 轮转回合
-        const ids = Object.keys(gameState.players);
-        gameState.turn = ids.find(id => id !== myId);
-        
+        // 切换回合
+        state.turn = (myId === state.p1) ? state.p2 : state.p1;
         selectedIdx = -1;
         hasActioned = false;
-        sendAction('ACTION', gameState);
+        
+        publish('UPDATE', state);
         render();
     }
 
     function render() {
-        const isMyTurn = gameState.turn === myId;
-        const myHand = gameState.players[myId] || [];
+        const isMyTurn = state.turn === myId;
+        const myHand = state.hands[myId] || [];
         
         const h = document.getElementById('my-hand');
         h.innerHTML = '';
@@ -132,20 +133,20 @@
             const el = document.createElement('div');
             el.className = `tile ${selectedIdx === i ? 'selected' : ''}`;
             el.innerText = t;
-            el.onclick = () => { if(isMyTurn) selectedIdx = (selectedIdx === i ? -1 : i); render(); };
+            el.onclick = () => { if(isMyTurn) { selectedIdx = (selectedIdx === i ? -1 : i); render(); }};
             h.appendChild(el);
         });
 
         const p = document.getElementById('pool-area');
         p.innerHTML = '';
-        gameState.pool.forEach(t => {
+        state.pool.forEach(t => {
             const d = document.createElement('div');
             d.className = 'tile pool'; d.innerText = t;
             p.appendChild(d);
         });
 
         document.getElementById('my-zone').className = `my-side ${isMyTurn ? 'active' : ''}`;
-        document.getElementById('turn-info').innerText = isMyTurn ? "🟢 你的回合" : "⚪ 对方回合";
+        document.getElementById('info-text').innerText = isMyTurn ? "🟢 轮到你了" : "⚪ 对方正在思考...";
         document.getElementById('btn-draw').disabled = !isMyTurn || hasActioned;
         document.getElementById('btn-discard').disabled = !isMyTurn;
     }
