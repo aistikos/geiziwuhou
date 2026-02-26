@@ -100,7 +100,7 @@
         if (!roomId) return;
         client = mqtt.connect('wss://broker.emqx.io:8084/mqtt');
         client.on('connect', () => {
-            client.subscribe(`mj_v13_final_${roomId}`);
+            client.subscribe(`mj_final_v1_${roomId}`);
             document.getElementById('room-id-display').innerText = roomId;
             showScreen('lobby-screen');
             let tries = 0;
@@ -119,7 +119,7 @@
     }
 
     function publish(type, data) {
-        if (client) client.publish(`mj_v13_final_${roomId}`, JSON.stringify({ from: myId, type, data }));
+        if (client) client.publish(`mj_final_v1_${roomId}`, JSON.stringify({ from: myId, type, data }));
     }
 
     function handleMessage(msg) {
