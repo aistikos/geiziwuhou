@@ -3,272 +3,151 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>文字麻将联机版 - 最终稳定版</title>
-    <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
+    <title>文字麻将 - 实时对战版</title>
+    <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
     <style>
         :root { --mj-green: #1a472a; --tile-bg: #fff; --accent: #ffeb3b; }
-        body { font-family: -apple-system, sans-serif; background: #111; color: white; margin: 0; padding: 10px; min-height: 100vh; display: flex; flex-direction: column; box-sizing: border-box; }
-        
-        /* 状态栏 */
-        #conn-panel { background: #222; padding: 12px; border-radius: 10px; margin-bottom: 10px; border: 1px solid #444; }
-        .id-label { font-size: 0.75rem; color: #aaa; margin-bottom: 4px; }
-        .id-text { color: var(--accent); font-family: monospace; font-weight: bold; word-break: break-all; font-size: 0.9rem; }
-        
-        /* 弃牌池 */
-        #pool-area { height: 110px; background: rgba(255,255,255,0.03); border: 1px solid #333; border-radius: 8px; padding: 8px; display: flex; flex-wrap: wrap; align-content: flex-start; gap: 4px; overflow-y: auto; margin-bottom: 10px; }
-        
-        /* 对方状态 */
-        .opponent-side { background: rgba(255,255,255,0.05); padding: 8px; border-radius: 8px; text-align: center; color: #888; font-size: 0.8rem; margin-bottom: 10px; border: 1px dashed #444; }
-        .opponent-side.active { border-color: var(--accent); color: var(--accent); background: rgba(255,235,59,0.05); }
-
-        /* 自己区域 */
-        .my-side { background: #1e1e1e; border: 1px solid #444; padding: 12px; border-radius: 12px; flex: 1; display: flex; flex-direction: column; transition: 0.3s; }
-        .my-side.active { background: var(--mj-green); border-color: var(--accent); box-shadow: 0 0 15px rgba(26,71,42,0.5); }
-
-        .hand { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; margin: 20px 0; min-height: 55px; }
-        .tile { 
-            width: 38px; height: 52px; background: var(--tile-bg); color: #000; border-radius: 5px; 
-            display: flex; align-items: center; justify-content: center; font-size: 1.3rem; font-weight: bold; 
-            box-shadow: 0 4px #ccc; border: 2px solid transparent; user-select: none;
-        }
-        .tile.selected { border-color: #2196f3; transform: translateY(-10px); box-shadow: 0 8px 15px rgba(0,0,0,0.5); }
-        .tile.pool-tile { width: 24px; height: 34px; font-size: 0.8rem; box-shadow: 0 1px #999; opacity: 0.8; }
-        .tile.new { border-color: #ffa000; background: #fffde7; }
-
-        .controls { display: flex; gap: 10px; }
-        button { flex: 1; padding: 14px 0; border: none; border-radius: 8px; font-weight: bold; font-size: 1rem; cursor: pointer; transition: 0.2s; }
-        button:disabled { opacity: 0.3; cursor: not-allowed; }
-        .btn-draw { background: var(--accent); color: #000; }
-        .btn-discard { background: #2196f3; color: white; }
-        .btn-win { background: #f44336; color: white; flex: 0.4; }
-
-        #vote-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.9); z-index: 1000; flex-direction: column; align-items: center; justify-content: center; }
+        body { font-family: sans-serif; background: #111; color: white; margin: 0; padding: 10px; min-height: 100vh; display: flex; flex-direction: column; }
+        .panel { background: #222; padding: 15px; border-radius: 12px; border: 1px solid #444; margin-bottom: 10px; }
+        #pool-area { height: 100px; background: rgba(255,255,255,0.05); border: 1px solid #333; border-radius: 8px; padding: 8px; display: flex; flex-wrap: wrap; align-content: flex-start; gap: 4px; overflow-y: auto; margin-bottom: 10px; }
+        .my-side { background: #222; border: 2px solid #444; padding: 12px; border-radius: 15px; flex: 1; display: flex; flex-direction: column; }
+        .my-side.active { border-color: var(--accent); background: var(--mj-green); }
+        .hand { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; margin: 15px 0; min-height: 60px; }
+        .tile { width: 38px; height: 52px; background: var(--tile-bg); color: #000; border-radius: 5px; display: flex; align-items: center; justify-content: center; font-size: 1.3rem; font-weight: bold; box-shadow: 0 4px #999; border: 2px solid transparent; }
+        .tile.selected { border-color: #2196f3; transform: translateY(-8px); }
+        .tile.pool { width: 24px; height: 34px; font-size: 0.8rem; box-shadow: 0 1px #666; opacity: 0.8; }
+        button { padding: 12px; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; }
+        .btn-draw { background: var(--accent); color: #000; flex: 1; }
+        .btn-discard { background: #2196f3; color: white; flex: 1; }
+        input { background: #000; color: #fff; border: 1px solid #555; padding: 10px; border-radius: 5px; width: 60%; }
     </style>
 </head>
 <body>
 
-    <div id="conn-panel">
-        <div class="id-label">我的 ID (点击可复制):</div>
-        <div class="id-text" id="my-id" onclick="copyId()">正在获取信号...</div>
-        <div id="connect-tools" style="margin-top:10px; display: flex; gap: 8px;">
-            <input type="text" id="peer-id-input" placeholder="输入对手 ID" style="flex:1; background:#000; color:#fff; border:1px solid #555; padding:8px; border-radius:5px;">
-            <button onclick="connectToPeer()" style="width:auto; padding:0 15px; background:#444; color:#fff; font-size:0.9rem;">连接</button>
-        </div>
-        <div id="status-msg" style="color: #6d6d6d; margin-top:6px; font-size:0.75rem;">正在初始化...</div>
-        <button id="force-start" onclick="startGame()" style="display:none; margin-top:10px; background:#4caf50; color:white; padding:5px;">强制发牌/开始游戏</button>
+    <div id="setup" class="panel">
+        <div style="font-size:0.8rem; color:#888;">输入任意数字房间号：</div>
+        <input type="number" id="room-input" placeholder="如 666">
+        <button onclick="initGame()" style="background:var(--accent); padding:10px 20px;">进入</button>
+        <div id="status" style="font-size:0.7rem; color:var(--accent); margin-top:5px;">未连接</div>
     </div>
 
-    <div id="opponent-info" class="opponent-side">等待对手连接...</div>
     <div id="pool-area"></div>
 
-    <div id="my-zone" class="my-side">
-        <div id="role-tag" style="font-size:0.7rem; color: #888; text-transform: uppercase;">WATING...</div>
-        <div class="hand" id="my-hand"></div>
-        <div class="controls">
-            <button class="btn-draw" id="btn-draw" onclick="doDraw()" disabled>摸牌</button>
-            <button class="btn-discard" id="btn-discard" onclick="doDiscard()" disabled>出牌/吃牌</button>
-            <button class="btn-win" id="btn-win" onclick="askWin()" disabled>胡牌</button>
-        </div>
-    </div>
-
-    <div id="vote-overlay">
-        <div style="background:#2a2a2a; padding:25px; border-radius:15px; width:85%; text-align:center; border: 1px solid var(--accent);">
-            <h3 style="margin-top:0">胡牌表决</h3>
-            <div id="vote-content" style="font-size:1.8rem; color:var(--accent); margin:20px 0; letter-spacing:2px;"></div>
+    <div id="game-ui" style="display:none; flex:1; flex-direction:column;">
+        <div id="my-zone" class="my-side">
+            <div id="turn-info" style="text-align:center; font-size:0.8rem; color:#aaa; margin-bottom:10px;">等待中...</div>
+            <div class="hand" id="my-hand"></div>
             <div style="display:flex; gap:10px;">
-                <button style="background:#4caf50; color:white;" onclick="sendVote(true)">认可 (Ta赢了)</button>
-                <button style="background:#f44336; color:white;" onclick="sendVote(false)">反对 (继续打)</button>
+                <button class="btn-draw" id="btn-draw" onclick="doDraw()" disabled>摸牌</button>
+                <button class="btn-discard" id="btn-discard" onclick="doDiscard()" disabled>确认出牌</button>
             </div>
         </div>
     </div>
 
 <script>
-    const CHARS = "我你他她咱谁们大家的人的了是不都在有没要会想看听写讲说拿走跑去玩笑哭爱恨怕请问谢对起给打找买卖用开关就才又还也只很最真太快慢大中小多多少好坏美丑新旧长短高矮胖瘦黑白红绿蓝天地下山水花草鱼肉饭菜酒水车书笔纸钱家校友手".split("");
-    let peer, conn, myRole = '', isMyTurn = false, hasActioned = false, firstIdx = -1;
-    let myHand = [], discardPool = [], mainDeck = [];
+    const CHARS = "我你他她咱谁们大家的人的了是不都在有没要会想看听写讲说拿走跑去玩笑哭爱恨怕请问谢对起给打找买卖用开关就才又还也只很最真太快慢大中小多多少好坏美丑".split("");
+    let client, roomId, myId = "UID_" + Math.random().toString(16).slice(2, 8);
+    let gameState = { players: {}, pool: [], turn: "" };
+    let selectedIdx = -1, hasActioned = false;
 
-    // 1. 初始化 Peer
-    peer = new Peer();
-    peer.on('open', id => {
-        document.getElementById('my-id').innerText = id;
-        document.getElementById('status-msg').innerText = "信号就绪，请分享 ID 或连接对手";
-    });
-
-    peer.on('error', err => {
-        document.getElementById('status-msg').innerText = "连接故障: " + err.type;
-        console.error(err);
-    });
-
-    // 2. 房主接收连接
-    peer.on('connection', c => {
-        conn = c; myRole = 'host'; setupConn();
-    });
-
-    // 3. 访客连接房主
-    function connectToPeer() {
-        const tid = document.getElementById('peer-id-input').value.trim();
-        if(!tid) return alert("请输入对手 ID");
-        conn = peer.connect(tid);
-        myRole = 'guest';
-        setupConn();
-    }
-
-    function setupConn() {
-        document.getElementById('status-msg').innerText = "建立通道中...";
-        conn.on('open', () => {
-            document.getElementById('status-msg').innerText = "握手成功！准备游戏";
-            document.getElementById('connect-tools').style.display = 'none';
-            document.getElementById('role-tag').innerText = myRole === 'host' ? "我是: 房主" : "我是: 访客";
-            document.getElementById('force-start').style.display = 'block'; // 显示开始按钮
+    function initGame() {
+        roomId = document.getElementById('room-input').value;
+        if(!roomId) return;
+        
+        // 使用公共免密 MQTT 服务器
+        client = mqtt.connect('wss://broker.emqx.io:8084/mqtt');
+        
+        client.on('connect', () => {
+            document.getElementById('status').innerText = "已进入房间: " + roomId;
+            client.subscribe("mj_room_" + roomId);
+            document.getElementById('setup').style.display = 'none';
+            document.getElementById('game-ui').style.display = 'flex';
             
-            // 访客连接后给房主发个信号
-            if(myRole === 'guest') {
-                setTimeout(() => conn.send({type: 'READY'}), 500);
-            }
+            // 进房广播
+            sendAction('JOIN', { id: myId });
         });
 
-        conn.on('data', data => handleData(data));
-        conn.on('close', () => {
-            alert("对方断开了连接");
-            location.reload();
+        client.on('message', (topic, message) => {
+            const msg = JSON.parse(message.toString());
+            handleMessage(msg);
         });
     }
 
-    // 4. 数据同步逻辑
-    function handleData(data) {
-        console.log("收到信号:", data.type);
-        switch(data.type) {
-            case 'READY':
-                if(myRole === 'host') startGame(); // 房主收到准备信号，发牌
-                break;
-            case 'INIT':
-                myHand = data.hand;
-                discardPool = data.pool;
-                isMyTurn = (data.turn === myRole);
-                render();
-                break;
-            case 'OPP_DISCARD':
-                discardPool.push(data.tile);
-                isMyTurn = true;
-                hasActioned = false;
-                render();
-                break;
-            case 'VOTE_WIN':
-                document.getElementById('vote-content').innerText = data.txt;
-                document.getElementById('vote-overlay').style.display = 'flex';
-                break;
-            case 'VOTE_RES':
-                if(data.ok) { alert("🎉 对方认可了！你赢了！"); location.reload(); }
-                else { alert("❌ 对方不认可你的句子。"); }
-                break;
+    function handleMessage(msg) {
+        if(msg.from === myId) return; // 忽略自己发的消息
+
+        if(msg.type === 'JOIN') {
+            // 如果我是房主（已经在房里），给新人发初始牌
+            if(gameState.turn === myId || gameState.turn === "") {
+                if(!gameState.players[msg.data.id]) {
+                    gameState.players[msg.data.id] = Array.from({length:13}, () => CHARS[Math.floor(Math.random()*CHARS.length)]);
+                }
+                if(!gameState.players[myId]) {
+                    gameState.players[myId] = Array.from({length:13}, () => CHARS[Math.floor(Math.random()*CHARS.length)]);
+                    gameState.turn = myId;
+                }
+                sendAction('SYNC', gameState);
+            }
+        } else if(msg.type === 'SYNC') {
+            gameState = msg.data;
+            render();
+        } else if(msg.type === 'ACTION') {
+            gameState = msg.data;
+            render();
         }
     }
 
-    // 5. 游戏动作
-    function startGame() {
-        mainDeck = [];
-        // 每种字放 2 张
-        CHARS.forEach(c => { mainDeck.push(c); mainDeck.push(c); });
-        mainDeck.sort(() => Math.random() - 0.5);
-        
-        const h1 = mainDeck.splice(0, 13);
-        const h2 = mainDeck.splice(0, 13);
-        
-        myHand = h1;
-        isMyTurn = true;
-        
-        conn.send({
-            type: 'INIT',
-            hand: h2,
-            pool: [],
-            turn: 'host'
-        });
-        document.getElementById('force-start').style.display = 'none';
-        render();
+    function sendAction(type, data) {
+        if(client) client.publish("mj_room_" + roomId, JSON.stringify({ from: myId, type, data }));
     }
 
     function doDraw() {
-        if(!isMyTurn || hasActioned) return;
-        // 简单逻辑：随机从词库摸一张（保证联机不中断）
-        const t = CHARS[Math.floor(Math.random()*CHARS.length)];
-        myHand.push(t);
+        gameState.players[myId].push(CHARS[Math.floor(Math.random()*CHARS.length)]);
         hasActioned = true;
         render();
     }
 
     function doDiscard() {
-        if(!isMyTurn) return;
-        // 吃牌逻辑：如果没摸牌点这个，就是吃最后一张弃牌
-        if(!hasActioned) {
-            if(discardPool.length === 0) return alert("没有可以吃的牌");
-            const last = discardPool.pop();
-            myHand.push(last);
-            hasActioned = true;
-            render();
-            return;
-        }
-        // 出牌逻辑
-        if(firstIdx === -1) return alert("请先点选一张你要出的牌");
-        const t = myHand.splice(firstIdx, 1)[0];
-        discardPool.push(t);
-        conn.send({type: 'OPP_DISCARD', tile: t});
-        isMyTurn = false;
+        if(selectedIdx === -1) return alert("选牌");
+        const tile = gameState.players[myId].splice(selectedIdx, 1)[0];
+        gameState.pool.push(tile);
+        
+        // 轮转回合
+        const ids = Object.keys(gameState.players);
+        gameState.turn = ids.find(id => id !== myId);
+        
+        selectedIdx = -1;
         hasActioned = false;
-        firstIdx = -1;
+        sendAction('ACTION', gameState);
         render();
     }
 
-    function askWin() {
-        if(myHand.length !== 13) return alert("手牌必须是 13 张才能胡牌！");
-        conn.send({type: 'VOTE_WIN', txt: myHand.join("")});
-    }
-
-    function sendVote(ok) {
-        document.getElementById('vote-overlay').style.display = 'none';
-        conn.send({type: 'VOTE_RES', ok: ok});
-        if(ok) location.reload();
-    }
-
     function render() {
+        const isMyTurn = gameState.turn === myId;
+        const myHand = gameState.players[myId] || [];
+        
         const h = document.getElementById('my-hand');
         h.innerHTML = '';
         myHand.forEach((t, i) => {
             const el = document.createElement('div');
-            el.className = `tile ${firstIdx === i ? 'selected' : ''}`;
+            el.className = `tile ${selectedIdx === i ? 'selected' : ''}`;
             el.innerText = t;
-            el.onclick = () => {
-                if(isMyTurn) {
-                    if(firstIdx === i) firstIdx = -1;
-                    else firstIdx = i;
-                    render();
-                }
-            };
+            el.onclick = () => { if(isMyTurn) selectedIdx = (selectedIdx === i ? -1 : i); render(); };
             h.appendChild(el);
         });
 
         const p = document.getElementById('pool-area');
         p.innerHTML = '';
-        discardPool.forEach(t => {
+        gameState.pool.forEach(t => {
             const d = document.createElement('div');
-            d.className = 'tile pool-tile';
-            d.innerText = t;
+            d.className = 'tile pool'; d.innerText = t;
             p.appendChild(d);
         });
 
         document.getElementById('my-zone').className = `my-side ${isMyTurn ? 'active' : ''}`;
-        document.getElementById('opponent-info').innerText = isMyTurn ? "轮到你出牌" : "对方正在思考...";
-        document.getElementById('opponent-info').className = `opponent-side ${!isMyTurn ? 'active' : ''}`;
-        
+        document.getElementById('turn-info').innerText = isMyTurn ? "🟢 你的回合" : "⚪ 对方回合";
         document.getElementById('btn-draw').disabled = !isMyTurn || hasActioned;
         document.getElementById('btn-discard').disabled = !isMyTurn;
-        document.getElementById('btn-win').disabled = !isMyTurn || myHand.length !== 13;
-    }
-
-    function copyId() {
-        const id = document.getElementById('my-id').innerText;
-        navigator.clipboard.writeText(id).then(() => {
-            alert("ID 已复制到剪贴板，快发给对手吧！");
-        });
     }
 </script>
 </body>
