@@ -7,51 +7,35 @@
     <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
     <style>
         :root { --tile-bg: #fff; --accent: #ffeb3b; --danger: #ff4444; --blue: #2196f3; --gold: #ffd700; --ready: #4caf50; }
-        body { 
-            font-family: -apple-system, sans-serif; 
-            background: #111; 
-            color: white; 
-            margin: 0; 
-            padding: 40px 15px 15px 15px; /* 增加顶部边距，解决太靠上的问题 */
-            height: 100vh; 
-            display: flex; 
-            flex-direction: column; 
-            box-sizing: border-box;
-            overflow: hidden; 
-        }
-        
+        body { font-family: -apple-system, sans-serif; background: #111; color: white; margin: 0; padding: 40px 15px 15px 15px; height: 100vh; display: flex; flex-direction: column; box-sizing: border-box; overflow: hidden; }
         .screen { display: none; flex-direction: column; height: 100%; }
         .active-screen { display: flex; }
         .center-box { background: #222; padding: 25px; border-radius: 20px; text-align: center; border: 1px solid #444; }
-
-        /* 顶部状态栏 */
         #player-status-bar { display: flex; justify-content: space-around; padding: 10px; background: rgba(255,255,255,0.1); border-radius: 12px; margin-bottom: 15px; font-size: 0.8rem; }
         .status-tag { padding: 4px 10px; border-radius: 6px; }
         .status-tag.win { border: 1px solid var(--gold); color: var(--gold); background: rgba(255,215,0,0.1); }
         .status-tag.active { background: var(--accent); color: #000; font-weight: bold; }
-
-        /* 池区：稍微拉开一点距离 */
         #pool-area { height: 50px; background: rgba(255,255,255,0.05); border-radius: 10px; padding: 8px; display: flex; align-items: center; gap: 5px; overflow-x: auto; margin-bottom: 15px; border: 1px solid #333; }
         .tile.pool { width: 26px; height: 36px; font-size: 0.9rem; flex-shrink: 0; background: #eee; color: #000; border-radius: 4px; display: flex; align-items: center; justify-content: center; font-weight: bold; }
-
-        /* 游戏核心区 */
-        .my-side { background: #222; border: 2px solid #444; padding: 20px 15px; border-radius: 20px; display: flex; flex-direction: column; gap: 20px; } /* 增加 gap 让内部不再拥挤 */
+        .my-side { background: #222; border: 2px solid #444; padding: 20px 15px; border-radius: 20px; display: flex; flex-direction: column; gap: 20px; }
         .my-side.turn { border-color: var(--accent); background: #1a2a1a; }
-
         .hand { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
         .tile { width: 42px; height: 56px; background: var(--tile-bg); color: #000; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 1.6rem; font-weight: bold; box-shadow: 0 4px #999; border: 3px solid transparent; }
         .tile.selected { border-color: var(--blue); transform: translateY(-12px); background: #e3f2fd; }
-
         .btn-row { display: flex; gap: 12px; }
-        button { border: none; border-radius: 12px; font-weight: bold; cursor: pointer; flex: 1; height: 48px; font-size: 1.1rem; box-shadow: 0 2px 5px rgba(0,0,0,0.3); }
+        button { border: none; border-radius: 12px; font-weight: bold; cursor: pointer; flex: 1; height: 48px; font-size: 1.1rem; }
         button:disabled { opacity: 0.15; }
         .btn-draw { background: var(--accent); color: #000; }
         .btn-blue { background: var(--blue); color: #fff; }
 
-        /* 修复评审弹窗：全宽适配，不再溢出 */
+        /* 评审与胡了特效 */
         #vote-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.92); z-index: 1000; display: none; align-items: center; justify-content: center; padding: 20px; box-sizing: border-box; }
-        .vote-box { background: #222; border: 2px solid var(--gold); border-radius: 24px; padding: 25px 15px; width: 100%; max-width: 350px; text-align: center; box-sizing: border-box; }
-        #vote-hand-text { font-size: 1.6rem; color: var(--gold); margin: 20px 0; font-weight: bold; line-height: 1.4; word-break: break-all; padding: 0 10px; }
+        .vote-box { background: #222; border: 2px solid var(--gold); border-radius: 24px; padding: 25px 15px; width: 100%; max-width: 350px; text-align: center; box-sizing: border-box; position: relative; }
+        #vote-hand-text { font-size: 1.6rem; color: var(--gold); margin: 20px 0; font-weight: bold; line-height: 1.4; word-break: break-all; }
+        
+        /* 胡了特效动画 */
+        .win-effect { position: absolute; top: -60px; left: 0; width: 100%; font-size: 3rem; font-weight: 900; text-align: center; background: linear-gradient(to bottom, #fff, #ffd700); -webkit-background-clip: text; -webkit-text-fill-color: transparent; filter: drop-shadow(0 0 10px var(--gold)); animation: bounce 0.6s infinite alternate; pointer-events: none; }
+        @keyframes bounce { from { transform: scale(1); } to { transform: scale(1.1); } }
     </style>
 </head>
 <body>
@@ -89,7 +73,7 @@
                 </div>
                 <div class="btn-row">
                     <button style="background:var(--ready); color:white;" id="btn-eat" onclick="doEat()">吃牌</button>
-                    <button style="background:var(--danger); color:white;" onclick="location.reload()">退出</button>
+                    <button style="background:var(--danger); color:white;" onclick="doConfirmExit()">退出</button>
                 </div>
             </div>
         </div>
@@ -97,6 +81,7 @@
 
     <div id="vote-overlay">
         <div class="vote-box">
+            <div class="win-effect">胡了！</div>
             <h3 style="margin-top:0;">正在评审句子...</h3>
             <div id="vote-hand-text"></div>
             <div id="vote-btns" style="display:flex; gap:12px; margin-top:10px;">
@@ -118,7 +103,7 @@
         if (!roomId) return;
         client = mqtt.connect('wss://broker.emqx.io:8084/mqtt');
         client.on('connect', () => {
-            client.subscribe(`mj_v12_ui_${roomId}`);
+            client.subscribe(`mj_v13_final_${roomId}`);
             document.getElementById('room-id-display').innerText = roomId;
             showScreen('lobby-screen');
             let tries = 0;
@@ -137,7 +122,7 @@
     }
 
     function publish(type, data) {
-        if (client) client.publish(`mj_v12_ui_${roomId}`, JSON.stringify({ from: myId, type, data }));
+        if (client) client.publish(`mj_v13_final_${roomId}`, JSON.stringify({ from: myId, type, data }));
     }
 
     function handleMessage(msg) {
@@ -195,16 +180,52 @@
                 return `<div class="${cls}">P${i+1}${state.winners.includes(p.id)?'胡':''}</div>`;
             }).join("");
 
-            document.getElementById('turn-tip').innerText = isWin ? "🏆 已胡牌" : (isMyTurn ? (hasActioned ? "请选一张牌打出" : "请先摸牌") : "等待其他玩家...");
+            document.getElementById('turn-tip').innerText = isWin ? "🏆 已胡牌" : (isMyTurn ? (hasActioned ? "请出一张牌" : "请先摸牌") : "等待他人...");
             document.getElementById('my-hand').innerHTML = (state.hands[myId]||[]).map((t, i) => `<div class="tile ${selectedIdx===i?'selected':''}" onclick="handleTileClick(${i})">${t}</div>`).join("");
             document.getElementById('pool-area').innerHTML = state.pool.map(t => `<div class="tile pool">${t}</div>`).join("");
-            
             document.getElementById('my-zone').className = `my-side ${isMyTurn && !isWin ? 'turn' : ''}`;
             document.getElementById('btn-draw').disabled = !isMyTurn || hasActioned || isWin;
             document.getElementById('btn-discard').disabled = !isMyTurn || !hasActioned || isWin || selectedIdx === -1;
             document.getElementById('btn-win').disabled = !isMyTurn || !hasActioned || isWin;
             document.getElementById('btn-eat').disabled = !isMyTurn || hasActioned || state.pool.length === 0 || isWin;
         }
+    }
+
+    function handleTileClick(i) {
+        if (selectedIdx === -1) { selectedIdx = i; } 
+        else if (selectedIdx === i) { selectedIdx = -1; } 
+        else {
+            const h = state.hands[myId];
+            const tileA = h.splice(selectedIdx, 1)[0];
+            h.splice(i > selectedIdx ? i - 1 : i, 0, tileA);
+            selectedIdx = -1;
+        }
+        renderAll();
+    }
+
+    function doConfirmExit() {
+        if (confirm("确定要退出游戏返回主界面吗？")) { location.reload(); }
+    }
+
+    function doDiscard() {
+        state.pool.push(state.hands[myId].splice(selectedIdx, 1)[0]);
+        moveToNextPlayer();
+        publish('UPDATE', state);
+    }
+
+    function moveToNextPlayer() {
+        let next = (state.turnIdx + 1) % state.players.length;
+        let safety = 0;
+        while (state.winners.includes(state.players[next].id) && safety < 10) {
+            next = (next + 1) % state.players.length;
+            safety++;
+        }
+        state.turnIdx = next; hasActioned = false; selectedIdx = -1;
+    }
+
+    function showScreen(id) {
+        document.querySelectorAll('.screen').forEach(s => s.classList.remove('active-screen'));
+        document.getElementById(id).classList.add('active-screen');
     }
 
     function doReady() {
@@ -223,60 +244,13 @@
         hasActioned = true; renderAll();
     }
 
-    function doDiscard() {
-        state.pool.push(state.hands[myId].splice(selectedIdx, 1)[0]);
-        moveToNextPlayer();
-        publish('UPDATE', state);
-    }
-
-    function moveToNextPlayer() {
-        let next = (state.turnIdx + 1) % state.players.length;
-        let safety = 0;
-        while (state.winners.includes(state.players[next].id) && safety < 10) {
-            next = (next + 1) % state.players.length;
-            safety++;
-        }
-        state.turnIdx = next;
-        hasActioned = false;
-        selectedIdx = -1;
-    }
-
-    function handleTileClick(i) {
-        if (selectedIdx === -1) {
-            selectedIdx = i;
-        } else if (selectedIdx === i) {
-            selectedIdx = -1;
-        } else {
-            // 严守逻辑：第一个点击 A，插入到第二个点击 B 前面
-            const h = state.hands[myId];
-            const tileA = h.splice(selectedIdx, 1)[0];
-            h.splice(i > selectedIdx ? i - 1 : i, 0, tileA);
-            selectedIdx = -1;
-        }
-        renderAll();
-    }
-
-    function showScreen(id) {
-        document.querySelectorAll('.screen').forEach(s => s.classList.remove('active-screen'));
-        document.getElementById(id).classList.add('active-screen');
-    }
-
-    function doEat() { 
-        if (state.pool.length > 0) { 
-            state.hands[myId].push(state.pool.pop()); 
-            hasActioned = true; 
-            renderAll(); 
-        } 
-    }
-    
+    function doEat() { if (state.pool.length > 0) { state.hands[myId].push(state.pool.pop()); hasActioned = true; renderAll(); } }
     function doWin() { publish('VOTE_START', { winner: myId, hand: state.hands[myId], votes: {[myId]: 'yes'} }); }
-    
     function submitVote(choice) { 
         publish('VOTE_SUBMIT', { choice }); 
         document.getElementById('vote-btns').style.display = 'none';
         document.getElementById('vote-status').style.display = 'block';
     }
-
     function renderVote() {
         document.getElementById('vote-overlay').style.display = 'flex';
         document.getElementById('vote-hand-text').innerText = state.vote.hand.join("");
