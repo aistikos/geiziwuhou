@@ -3,40 +3,52 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>文字麻将 - 准备就绪版</title>
+    <title>文字麻将 - 终极对战版</title>
     <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
     <style>
-        :root { --mj-green: #1a472a; --tile-bg: #fff; --accent: #ffeb3b; --danger: #ff4444; --blue: #2196f3; }
-        body { font-family: sans-serif; background: #111; color: white; margin: 0; padding: 10px; min-height: 100vh; display: flex; flex-direction: column; }
+        :root { --mj-green: #1a472a; --tile-bg: #fff; --accent: #ffeb3b; --danger: #ff4444; --blue: #2196f3; --gold: #ffc107; }
+        body { font-family: sans-serif; background: #111; color: white; margin: 0; padding: 10px; min-height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
         
-        /* 1. 登录与大厅 */
-        .setup-box { background: #222; padding: 20px; border-radius: 15px; border: 1px solid #444; text-align: center; margin-bottom: 10px; }
+        /* 进房与大厅 */
+        .setup-box { background: #222; padding: 20px; border-radius: 15px; border: 1px solid #444; text-align: center; margin-top: 20px; }
         .lobby-box { background: #222; padding: 15px; border-radius: 15px; border: 1px solid #444; flex: 1; display: flex; flex-direction: column; align-items: center; }
-        .player-tag { background: #333; padding: 10px 20px; border-radius: 8px; margin: 5px; width: 80%; display: flex; justify-content: space-between; }
+        .player-tag { background: #333; padding: 10px 15px; border-radius: 8px; margin: 5px; width: 85%; display: flex; justify-content: space-between; font-size: 0.9rem; }
         .ready-tag { color: #4caf50; font-weight: bold; }
 
-        input { background: #000; color: #fff; border: 1px solid #555; padding: 12px; border-radius: 8px; width: 70%; font-size: 1.1rem; margin-bottom: 15px; }
+        input { background: #000; color: #fff; border: 1px solid #555; padding: 12px; border-radius: 8px; width: 60%; font-size: 1rem; margin-bottom: 15px; }
         
-        /* 2. 游戏区域 */
+        /* 牌池区域 */
         #pool-area { height: 120px; background: rgba(255,255,255,0.05); border: 1px solid #333; border-radius: 10px; padding: 8px; display: flex; flex-wrap: wrap; align-content: flex-start; gap: 5px; overflow-y: auto; margin-bottom: 10px; }
-        .my-side { background: #222; border: 2px solid #444; padding: 15px; border-radius: 20px; flex: 1; display: flex; flex-direction: column; }
+        
+        /* 游戏区域 */
+        .my-side { background: #222; border: 2px solid #444; padding: 15px; border-radius: 20px; flex: 1; display: flex; flex-direction: column; position: relative; }
         .my-side.active { border-color: var(--accent); background: var(--mj-green); }
         
         /* 摸牌红光提醒 */
         .remind-draw { animation: flash-red 0.8s infinite; border-color: var(--danger) !important; }
         @keyframes flash-red { 0% { box-shadow: 0 0 5px var(--danger); } 50% { box-shadow: 0 0 20px var(--danger); } 100% { box-shadow: 0 0 5px var(--danger); } }
 
+        /* 牌样式 */
         .hand { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; margin: 15px 0; min-height: 100px; }
-        .tile { width: 42px; height: 58px; background: var(--tile-bg); color: #000; border-radius: 6px; display: flex; align-items: center; justify-content: center; font-size: 1.5rem; font-weight: bold; box-shadow: 0 4px #999; border: 2px solid transparent; }
-        .tile.selected { border-color: var(--blue); transform: translateY(-15px); background: #e3f2fd; }
-        .tile.pool { width: 28px; height: 38px; font-size: 1rem; box-shadow: 0 1px #666; opacity: 0.9; }
+        .tile { width: 40px; height: 55px; background: var(--tile-bg); color: #000; border-radius: 6px; display: flex; align-items: center; justify-content: center; font-size: 1.4rem; font-weight: bold; box-shadow: 0 4px #999; border: 2px solid transparent; }
+        .tile.selected { border-color: var(--blue); transform: translateY(-12px); background: #e3f2fd; }
+        .tile.pool { width: 28px; height: 38px; font-size: 0.9rem; box-shadow: 0 1px #666; opacity: 0.9; }
 
+        /* 按钮样式优化 */
         .controls { display: flex; gap: 10px; }
-        button { padding: 15px; border: none; border-radius: 12px; font-weight: bold; font-size: 1.1rem; cursor: pointer; }
-        .btn-main { background: var(--accent); color: #000; flex: 1; }
-        .btn-ready { background: #4caf50; color: white; width: 80%; }
-        button:disabled { opacity: 0.2; }
-        #status-info { text-align:center; font-size:0.8rem; color:#666; margin-bottom:5px; }
+        button { border: none; border-radius: 10px; font-weight: bold; cursor: pointer; transition: 0.2s; }
+        button:active { transform: scale(0.95); }
+        button:disabled { opacity: 0.2; cursor: not-allowed; }
+
+        .btn-normal { padding: 10px 25px; font-size: 1rem; }
+        .btn-draw { background: var(--accent); color: #000; flex: 1; padding: 15px; }
+        .btn-discard { background: var(--blue); color: white; flex: 2; padding: 15px; }
+        .btn-win { background: var(--gold); color: #000; flex: 1; padding: 15px; box-shadow: 0 0 10px rgba(255,193,7,0.5); }
+        
+        .btn-ready { background: #4caf50; color: white; padding: 10px 30px; }
+        .btn-start { background: var(--accent); color: #000; padding: 12px 40px; margin-top: 15px; font-size: 1.1rem; }
+
+        #status-info { text-align:center; font-size:0.75rem; color:#666; margin-bottom:5px; }
     </style>
 </head>
 <body>
@@ -44,30 +56,34 @@
     <div id="login-screen" class="setup-box">
         <h2 style="margin:0 0 15px 0;">🀄️ 文字麻将</h2>
         <input type="number" id="room-input" placeholder="输入房间号">
-        <button onclick="joinGame()" class="btn-main" style="width:80%;">进入大厅</button>
+        <br>
+        <button onclick="joinGame()" class="btn-ready btn-normal" style="background:var(--blue)">进入大厅</button>
     </div>
 
     <div id="lobby-screen" class="lobby-box" style="display:none;">
-        <h3>游戏大厅</h3>
+        <h3 style="margin-bottom:10px;">待战大厅</h3>
         <div id="player-status-list" style="width:100%; display:flex; flex-direction:column; align-items:center;"></div>
-        <p id="lobby-tip" style="font-size:0.8rem; color:#888; margin:20px 0;"></p>
-        <button id="ready-btn" class="btn-ready" onclick="doReady()">点击准备</button>
-        <button id="start-btn" class="btn-main" style="display:none; width:80%; margin-top:10px;" onclick="doStart()">全员就绪，开始游戏</button>
+        <p id="lobby-tip" style="font-size:0.8rem; color:#888; margin:15px 0;"></p>
+        <button id="ready-btn" class="btn-ready btn-normal" onclick="doReady()">点击准备</button>
+        <button id="start-btn" class="btn-start" style="display:none;" onclick="doStart()">开始游戏</button>
     </div>
 
     <div id="game-screen" style="display:none; flex:1; flex-direction:column;">
         <div id="status-info"></div>
         <div id="pool-area"></div>
         <div id="my-zone" class="my-side">
-            <div id="turn-tip" style="text-align:center; font-weight:bold; margin-bottom:10px;"></div>
+            <div id="turn-tip" style="text-align:center; font-size:0.9rem; font-weight:bold; margin-bottom:8px;"></div>
             <div class="hand" id="my-hand"></div>
+            
             <div class="controls">
-                <button class="btn-main" id="btn-draw" onclick="doDraw()">摸牌</button>
-                <button class="btn-main" style="background:var(--blue); color:white;" id="btn-discard" onclick="doDiscard()" disabled>出这张字</button>
+                <button class="btn-draw" id="btn-draw" onclick="doDraw()">摸牌</button>
+                <button class="btn-discard" id="btn-discard" onclick="doDiscard()" disabled>出字</button>
+                <button class="btn-win" id="btn-win" onclick="doWin()" disabled>胡了！</button>
             </div>
-            <div style="display:flex; justify-content: space-between; margin-top:15px; opacity:0.6;">
-                <button onclick="doEat()" id="btn-eat" style="padding:5px 10px; font-size:0.7rem; background:#444; color:white;">吃上一张</button>
-                <button onclick="location.reload()" style="background:none; color:#555; font-size:0.6rem; border:1px solid #444;">离开房间</button>
+            
+            <div style="display:flex; justify-content: space-between; margin-top:15px; opacity:0.5;">
+                <button onclick="doEat()" id="btn-eat" style="padding:5px 10px; font-size:0.7rem; background:#444; color:white; border-radius:5px;">吃牌</button>
+                <button onclick="location.reload()" style="background:none; color:#555; font-size:0.6rem; border:1px solid #444; border-radius:5px; padding:3px 8px;">退出</button>
             </div>
         </div>
     </div>
@@ -75,13 +91,7 @@
 <script>
     const CHARS = "我你他她咱谁们大家的人的了是不都在有没要会想看听写讲说拿走跑去玩笑哭爱恨怕请问谢对起给打找买卖用开关就才又还也只很最真太快慢大中小多多少好坏美丑".split("");
     let client, roomId, myId = "P_" + Math.random().toString(16).slice(2, 8);
-    let state = { 
-        gameStarted: false,
-        players: [], // 格式: {id: "P_xxx", ready: false}
-        hands: {}, 
-        pool: [], 
-        turnIdx: 0 
-    };
+    let state = { gameStarted: false, players: [], hands: {}, pool: [], turnIdx: 0 };
     let selectedIdx = -1, hasActioned = false;
 
     function joinGame() {
@@ -89,7 +99,7 @@
         if (!roomId) return;
         client = mqtt.connect('wss://broker.emqx.io:8084/mqtt');
         client.on('connect', () => {
-            client.subscribe("mj_lobby_v1_" + roomId);
+            client.subscribe("mj_pro_v5_" + roomId);
             document.getElementById('login-screen').style.display = 'none';
             document.getElementById('lobby-screen').style.display = 'flex';
             publish('JOIN', { id: myId });
@@ -114,11 +124,14 @@
             state = msg.data;
             state.gameStarted = true;
             renderAll();
+        } else if (msg.type === 'WIN_BROADCAST') {
+            alert("🎊 恭喜玩家 " + (state.players.findIndex(p=>p.id===msg.from)+1) + " 胡牌了！\n句子：" + msg.data.hand.join(""));
+            location.reload();
         }
     }
 
     function publish(type, data) {
-        if (client) client.publish("mj_lobby_v1_" + roomId, JSON.stringify({ from: myId, type, data }));
+        if (client) client.publish("mj_pro_v5_" + roomId, JSON.stringify({ from: myId, type, data }));
     }
 
     // 准备与开始逻辑
@@ -130,7 +143,6 @@
     }
 
     function doStart() {
-        // 初始化全员手牌
         state.players.forEach(p => {
             state.hands[p.id] = Array.from({length:13}, () => CHARS[Math.floor(Math.random()*CHARS.length)]);
         });
@@ -163,6 +175,11 @@
         renderAll();
     }
 
+    function doWin() {
+        if(!confirm("确定要胡牌吗？所有玩家都将看到你的句子！")) return;
+        publish('WIN_BROADCAST', { hand: state.hands[myId] });
+    }
+
     function handleTileClick(i) {
         if (selectedIdx === -1) {
             selectedIdx = i;
@@ -171,14 +188,13 @@
         } else {
             const hand = state.hands[myId];
             const item = hand.splice(selectedIdx, 1)[0];
-            hand.splice(i, 0, item); // 插入逻辑
+            hand.splice(i, 0, item);
             selectedIdx = -1;
             if (state.players[state.turnIdx].id === myId) publish('UPDATE', state); 
         }
         renderAll();
     }
 
-    // 综合渲染
     function renderAll() {
         if (!state.gameStarted) {
             renderLobby();
@@ -190,11 +206,9 @@
     function renderLobby() {
         document.getElementById('lobby-screen').style.display = 'flex';
         document.getElementById('game-screen').style.display = 'none';
-        
         const listEl = document.getElementById('player-status-list');
         listEl.innerHTML = '';
-        let allReady = state.players.length >= 2; // 至少2人才能点开始
-        
+        let allReady = state.players.length >= 2;
         state.players.forEach((p, index) => {
             const div = document.createElement('div');
             div.className = 'player-tag';
@@ -203,30 +217,27 @@
             listEl.appendChild(div);
             if (!p.ready) allReady = false;
         });
-
         const isHost = state.players[0].id === myId;
         const startBtn = document.getElementById('start-btn');
         const tip = document.getElementById('lobby-tip');
-
         if (isHost) {
             startBtn.style.display = 'block';
             startBtn.disabled = !allReady;
-            tip.innerText = allReady ? "全员已就绪，可以开场！" : "等待其他玩家准备 (需至少2人)...";
+            tip.innerText = allReady ? "全员就绪" : "等待准备 (至少2人)...";
         } else {
             startBtn.style.display = 'none';
-            tip.innerText = "等待房主开始游戏...";
+            tip.innerText = "等待房主开局...";
         }
     }
 
     function renderGame() {
         document.getElementById('lobby-screen').style.display = 'none';
         document.getElementById('game-screen').style.display = 'flex';
-        
         const turnPlayer = state.players[state.turnIdx];
         const isMyTurn = turnPlayer.id === myId;
         const myHand = state.hands[myId] || [];
         
-        document.getElementById('status-info').innerText = `当前回合: ${isMyTurn ? '● 你的' : '○ 玩家' + (state.turnIdx+1) + '的'}`;
+        document.getElementById('status-info').innerText = `在线: ${state.players.length} | 轮到: 玩家 ${state.turnIdx+1}`;
 
         const h = document.getElementById('my-hand');
         h.innerHTML = '';
@@ -248,22 +259,28 @@
 
         const zone = document.getElementById('my-zone');
         const tip = document.getElementById('turn-tip');
+        const winBtn = document.getElementById('btn-win');
         
         if (isMyTurn) {
             zone.classList.add('active');
             if (!hasActioned) {
                 zone.classList.add('remind-draw');
-                tip.innerHTML = "<span style='color:var(--danger)'>🚨 请摸牌或吃牌！</span>";
+                tip.innerHTML = "<span style='color:var(--danger)'>🚨 请摸牌</span>";
+                document.getElementById('btn-discard').disabled = true;
+                winBtn.disabled = true;
             } else {
                 zone.classList.remove('remind-draw');
-                tip.innerHTML = "<span style='color:var(--accent)'>排排队，造造句</span>";
+                tip.innerHTML = "<span style='color:var(--accent)'>理牌中 / 造句中</span>";
+                document.getElementById('btn-discard').disabled = false;
+                winBtn.disabled = false; // 只有摸完牌才能胡
             }
         } else {
             zone.className = 'my-side';
-            tip.innerHTML = "<span style='color:#666'>别偷看，等人家出字...</span>";
+            tip.innerHTML = "<span style='color:#666'>等待对方...</span>";
+            document.getElementById('btn-discard').disabled = true;
+            winBtn.disabled = true;
         }
         document.getElementById('btn-draw').disabled = !isMyTurn || hasActioned;
-        document.getElementById('btn-discard').disabled = !isMyTurn || !hasActioned;
     }
 </script>
 </body>
