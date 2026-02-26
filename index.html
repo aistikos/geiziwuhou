@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>文字麻将 V13.5</title>
+    <title>文字麻将 V13.6</title>
     <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
     <style>
         :root { --tile-bg: #fff; --accent: #ffeb3b; --danger: #ff4444; --blue: #2196f3; --gold: #ffd700; --ready: #4caf50; }
@@ -28,8 +28,9 @@
         .btn-draw { background: var(--accent); color: #000; }
         .btn-blue { background: var(--blue); color: #fff; }
 
-        #vote-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.92); z-index: 1000; display: none; align-items: center; justify-content: center; padding: 20px; box-sizing: border-box; }
-        .vote-box { background: #222; border: 2px solid var(--gold); border-radius: 24px; padding: 35px 15px 25px 15px; width: 100%; max-width: 350px; text-align: center; box-sizing: border-box; position: relative; }
+        /* 通用弹窗样式 (评审和退出共用) */
+        .overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.92); z-index: 1000; display: none; align-items: center; justify-content: center; padding: 20px; box-sizing: border-box; }
+        .custom-box { background: #222; border: 2px solid var(--gold); border-radius: 24px; padding: 35px 15px 25px 15px; width: 100%; max-width: 350px; text-align: center; box-sizing: border-box; position: relative; }
         #vote-hand-text { font-size: 1.6rem; color: var(--gold); margin: 20px 0; font-weight: bold; line-height: 1.4; word-break: break-all; }
         .win-effect { position: absolute; top: -45px; left: 0; width: 100%; font-size: 3.5rem; font-weight: 900; text-align: center; color: var(--gold); text-shadow: 0 0 15px #ff0000; animation: bounce 0.6s infinite alternate; pointer-events: none; z-index: 1001; }
         @keyframes bounce { from { transform: scale(1); } to { transform: scale(1.2); } }
@@ -38,7 +39,7 @@
 <body>
     <div id="login-screen" class="screen active-screen" style="justify-content: center;">
         <div class="center-box">
-            <h2 style="margin-bottom:20px;">🀄️ 文字麻将 V13.5</h2>
+            <h2 style="margin-bottom:20px;">🀄️ 文字麻将 V13.6</h2>
             <input type="number" id="room-input" placeholder="输入房间号" style="width:85%; padding:15px; margin-bottom:20px; border-radius:12px; border:none; text-align:center; font-size:1.6rem; background:#000; color:#fff; border:1px solid #555;">
             <button onclick="joinGame()" class="btn-draw" style="width:85%;">进入房间</button>
         </div>
@@ -69,14 +70,14 @@
                 </div>
                 <div class="btn-row">
                     <button style="background:var(--ready); color:white;" id="btn-eat" onclick="doEat()">吃牌</button>
-                    <button style="background:var(--danger); color:white;" onclick="doConfirmExit()">退出</button>
+                    <button style="background:var(--danger); color:white;" onclick="showExitConfirm()">退出</button>
                 </div>
             </div>
         </div>
     </div>
 
-    <div id="vote-overlay">
-        <div class="vote-box">
+    <div id="vote-overlay" class="overlay">
+        <div class="custom-box">
             <div class="win-effect">胡了！</div>
             <h3 style="margin-top:0;">正在评审句子 (13张)...</h3>
             <div id="vote-hand-text"></div>
@@ -85,6 +86,17 @@
                 <button style="background:var(--danger); color:white;" onclick="submitVote('no')">狗屁不通！</button>
             </div>
             <div id="vote-status" style="margin-top:15px; font-size:0.9rem; color:#aaa; display:none;">已投票，等待结果...</div>
+        </div>
+    </div>
+
+    <div id="exit-overlay" class="overlay">
+        <div class="custom-box">
+            <h3 style="color:var(--gold); margin-top:0;">提示</h3>
+            <p style="margin:20px 0; font-size:1.1rem;">确定要退出游戏并返回主界面吗？</p>
+            <div style="display:flex; gap:12px;">
+                <button class="btn-blue" onclick="hideExitConfirm()">取消</button>
+                <button style="background:var(--danger); color:white;" onclick="location.reload()">退出</button>
+            </div>
         </div>
     </div>
 
@@ -98,7 +110,7 @@
         if (!roomId) return;
         client = mqtt.connect('wss://broker.emqx.io:8084/mqtt');
         client.on('connect', () => {
-            client.subscribe(`mj_v13_5_fix_${roomId}`);
+            client.subscribe(`mj_v13_6_ui_${roomId}`);
             document.getElementById('room-id-display').innerText = "房间: " + roomId;
             showScreen('lobby-screen');
             publish('HELLO', { id: myId });
@@ -113,7 +125,7 @@
     }
 
     function publish(type, data) {
-        if (client) client.publish(`mj_v13_5_fix_${roomId}`, JSON.stringify({ from: myId, type, data }));
+        if (client) client.publish(`mj_v13_6_ui_${roomId}`, JSON.stringify({ from: myId, type, data }));
     }
 
     function handleMessage(msg) {
@@ -127,10 +139,9 @@
             }
             renderAll();
         } else if (msg.type === 'VOTE_START') {
-            state.vote = msg.data; 
-            renderVote();
+            state.vote = msg.data; renderVote();
         } else if (msg.type === 'VOTE_SUBMIT') {
-            if (state && state.host === myId && state.vote) {
+            if (state?.host === myId && state.vote) {
                 state.vote.votes[msg.from] = msg.data.choice;
                 if (Object.keys(state.vote.votes).length >= state.players.length) {
                     const yes = Object.values(state.vote.votes).filter(v => v === 'yes').length;
@@ -191,7 +202,8 @@
         renderAll();
     }
 
-    function doConfirmExit() { if (confirm("确定要退出游戏返回主界面吗？")) { location.reload(); } }
+    function showExitConfirm() { document.getElementById('exit-overlay').style.display = 'flex'; }
+    function hideExitConfirm() { document.getElementById('exit-overlay').style.display = 'none'; }
 
     function doDiscard() {
         const discardedTile = localHandOrder.splice(selectedIdx, 1)[0];
