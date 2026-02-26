@@ -3,11 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>文字麻将</title>
+    <title>文字麻将-稳定版</title>
     <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
     <style>
         :root { --tile-bg: #fff; --accent: #ffeb3b; --danger: #ff4444; --blue: #2196f3; --gold: #ffd700; --ready: #4caf50; }
-        body { font-family: -apple-system, sans-serif; background: #111; color: white; margin: 0; padding: 40px 15px 15px 15px; height: 100vh; display: flex; flex-direction: column; box-sizing: border-box; overflow: hidden; }
+        body { font-family: -apple-system, sans-serif; background: #111; color: white; margin: 0; padding: 45px 15px 15px 15px; height: 100vh; display: flex; flex-direction: column; box-sizing: border-box; overflow: hidden; }
         .screen { display: none; flex-direction: column; height: 100%; }
         .active-screen { display: flex; }
         .center-box { background: #222; padding: 25px; border-radius: 20px; text-align: center; border: 1px solid #444; }
@@ -28,18 +28,15 @@
         .btn-draw { background: var(--accent); color: #000; }
         .btn-blue { background: var(--blue); color: #fff; }
 
-        /* 评审与胡了特效 */
         #vote-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.92); z-index: 1000; display: none; align-items: center; justify-content: center; padding: 20px; box-sizing: border-box; }
-        .vote-box { background: #222; border: 2px solid var(--gold); border-radius: 24px; padding: 25px 15px; width: 100%; max-width: 350px; text-align: center; box-sizing: border-box; position: relative; }
+        .vote-box { background: #222; border: 2px solid var(--gold); border-radius: 24px; padding: 35px 15px 25px 15px; width: 100%; max-width: 350px; text-align: center; box-sizing: border-box; position: relative; }
         #vote-hand-text { font-size: 1.6rem; color: var(--gold); margin: 20px 0; font-weight: bold; line-height: 1.4; word-break: break-all; }
         
-        /* 胡了特效动画 */
-        .win-effect { position: absolute; top: -60px; left: 0; width: 100%; font-size: 3rem; font-weight: 900; text-align: center; background: linear-gradient(to bottom, #fff, #ffd700); -webkit-background-clip: text; -webkit-text-fill-color: transparent; filter: drop-shadow(0 0 10px var(--gold)); animation: bounce 0.6s infinite alternate; pointer-events: none; }
-        @keyframes bounce { from { transform: scale(1); } to { transform: scale(1.1); } }
+        .win-effect { position: absolute; top: -45px; left: 0; width: 100%; font-size: 3.5rem; font-weight: 900; text-align: center; color: var(--gold); text-shadow: 0 0 15px #ff0000; animation: bounce 0.6s infinite alternate; pointer-events: none; z-index: 1001; }
+        @keyframes bounce { from { transform: scale(1); } to { transform: scale(1.2); } }
     </style>
 </head>
 <body>
-
     <div id="login-screen" class="screen active-screen" style="justify-content: center;">
         <div class="center-box">
             <h2 style="margin-bottom:20px;">🀄️ 文字麻将</h2>
@@ -146,8 +143,6 @@
             }
         } else if (msg.type === 'VOTE_END') {
             document.getElementById('vote-overlay').style.display = 'none';
-            document.getElementById('vote-status').style.display = 'none';
-            document.getElementById('vote-btns').style.display = 'flex';
             if (msg.data.success) state.winners.push(msg.data.winnerId);
             state.vote = null; 
             if (state.host === myId) {
@@ -174,12 +169,10 @@
             showScreen('game-screen');
             const isMyTurn = state.players[state.turnIdx].id === myId;
             const isWin = state.winners.includes(myId);
-
             document.getElementById('player-status-bar').innerHTML = state.players.map((p, i) => {
                 let cls = "status-tag" + (state.winners.includes(p.id)?" win":"") + (state.turnIdx===i?" active":"");
                 return `<div class="${cls}">P${i+1}${state.winners.includes(p.id)?'胡':''}</div>`;
             }).join("");
-
             document.getElementById('turn-tip').innerText = isWin ? "🏆 已胡牌" : (isMyTurn ? (hasActioned ? "请出一张牌" : "请先摸牌") : "等待他人...");
             document.getElementById('my-hand').innerHTML = (state.hands[myId]||[]).map((t, i) => `<div class="tile ${selectedIdx===i?'selected':''}" onclick="handleTileClick(${i})">${t}</div>`).join("");
             document.getElementById('pool-area').innerHTML = state.pool.map(t => `<div class="tile pool">${t}</div>`).join("");
@@ -203,9 +196,7 @@
         renderAll();
     }
 
-    function doConfirmExit() {
-        if (confirm("确定要退出游戏返回主界面吗？")) { location.reload(); }
-    }
+    function doConfirmExit() { if (confirm("确定要退出游戏返回主界面吗？")) { location.reload(); } }
 
     function doDiscard() {
         state.pool.push(state.hands[myId].splice(selectedIdx, 1)[0]);
