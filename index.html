@@ -3,138 +3,176 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>文字麻将 - 终极稳健版</title>
+    <title>文字麻将 - 插入理牌版</title>
     <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
     <style>
-        :root { --mj-green: #1a472a; --tile-bg: #fff; --accent: #ffeb3b; }
+        :root { --mj-green: #1a472a; --tile-bg: #fff; --accent: #ffeb3b; --danger: #ff5252; --blue: #2196f3; }
         body { font-family: sans-serif; background: #111; color: white; margin: 0; padding: 10px; min-height: 100vh; display: flex; flex-direction: column; }
+        
         .setup-box { background: #222; padding: 15px; border-radius: 12px; border: 1px solid #444; margin-bottom: 10px; text-align: center; }
-        input { background: #000; color: #fff; border: 1px solid #555; padding: 12px; border-radius: 8px; width: 60%; font-size: 1rem; margin-bottom: 10px; }
-        #pool-area { height: 110px; background: rgba(255,255,255,0.05); border: 1px solid #333; border-radius: 8px; padding: 8px; display: flex; flex-wrap: wrap; align-content: flex-start; gap: 4px; overflow-y: auto; margin-bottom: 10px; }
-        .my-side { background: #222; border: 2px solid #444; padding: 15px; border-radius: 20px; flex: 1; display: flex; flex-direction: column; transition: 0.3s; }
+        input { background: #000; color: #fff; border: 1px solid #555; padding: 12px; border-radius: 8px; width: 60%; font-size: 1rem; }
+
+        #pool-area { height: 120px; background: rgba(255,255,255,0.05); border: 1px solid #333; border-radius: 8px; padding: 8px; display: flex; flex-wrap: wrap; align-content: flex-start; gap: 4px; overflow-y: auto; margin-bottom: 10px; }
+        .my-side { background: #222; border: 2px solid #444; padding: 15px; border-radius: 20px; flex: 1; display: flex; flex-direction: column; position: relative; }
         .my-side.active { border-color: var(--accent); background: var(--mj-green); }
-        .hand { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; margin: 15px 0; min-height: 60px; }
-        .tile { width: 40px; height: 55px; background: var(--tile-bg); color: #000; border-radius: 6px; display: flex; align-items: center; justify-content: center; font-size: 1.4rem; font-weight: bold; box-shadow: 0 4px #999; border: 2px solid transparent; }
-        .tile.selected { border-color: #2196f3; transform: translateY(-10px); }
-        .tile.pool { width: 26px; height: 36px; font-size: 0.9rem; box-shadow: 0 1px #666; }
+        
+        /* 摸牌红光闪烁 */
+        .remind-draw { border: 2px solid var(--danger) !important; animation: blink 1s infinite; }
+        @keyframes blink { 0% { box-shadow: 0 0 5px var(--danger); } 50% { box-shadow: 0 0 20px var(--danger); } 100% { box-shadow: 0 0 5px var(--danger); } }
+
+        .hand { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; margin: 15px 0; min-height: 80px; }
+        .tile { width: 38px; height: 52px; background: var(--tile-bg); color: #000; border-radius: 6px; display: flex; align-items: center; justify-content: center; font-size: 1.3rem; font-weight: bold; box-shadow: 0 4px #999; border: 2px solid transparent; transition: transform 0.1s; }
+        
+        /* 选中状态：被选中的文字 */
+        .tile.selected { border-color: var(--blue); transform: translateY(-12px); background: #e3f2fd; box-shadow: 0 8px 15px rgba(0,0,0,0.3); }
+        .tile.pool { width: 26px; height: 36px; font-size: 0.8rem; box-shadow: 0 1px #666; opacity: 0.9; }
+
         .controls { display: flex; gap: 10px; }
-        button { flex: 1; padding: 15px 0; border: none; border-radius: 10px; font-weight: bold; font-size: 1.1rem; cursor: pointer; }
-        button:disabled { opacity: 0.3; }
+        button { flex: 1; padding: 15px 0; border: none; border-radius: 10px; font-weight: bold; font-size: 1rem; cursor: pointer; }
         .btn-draw { background: var(--accent); color: #000; }
-        .btn-discard { background: #2196f3; color: white; }
-        #force-btn { background: #4caf50; color: white; margin-top: 10px; font-size: 0.8rem; padding: 8px; }
+        .btn-action { background: var(--blue); color: white; }
+        button:disabled { opacity: 0.2; cursor: not-allowed; }
+        
+        #info-text { text-align:center; font-size:0.85rem; color:#aaa; margin-bottom:5px; height: 1.2rem; }
+        #player-list { font-size: 0.7rem; color: #666; text-align: center; margin-bottom: 5px; }
     </style>
 </head>
 <body>
 
     <div id="login-screen" class="setup-box">
-        <h3>文字麻将联机</h3>
+        <h3>文字麻将 (插入理牌版)</h3>
         <input type="number" id="room-input" placeholder="输入房间号">
-        <button onclick="joinGame()" style="background:var(--accent); width:100%; color:#000;">进入房间</button>
-        <div id="connect-status" style="margin-top:10px; font-size:0.7rem; color:#888;"></div>
+        <button onclick="joinGame()" style="background:var(--accent); width:100%; color:#000; margin-top:10px;">进入房间</button>
     </div>
 
     <div id="game-screen" style="display:none; flex:1; flex-direction:column;">
+        <div id="player-list">正在连接玩家...</div>
         <div id="pool-area"></div>
+        
         <div id="my-zone" class="my-side">
-            <div id="info-text" style="text-align:center; font-size:0.9rem; color:#aaa; margin-bottom:10px;">连接中...</div>
+            <div id="info-text">等待同步...</div>
             <div class="hand" id="my-hand"></div>
             
-            <button id="force-btn" onclick="forceStart()">没牌点我：强制发牌/开始</button>
-
             <div class="controls">
-                <button class="btn-draw" id="btn-draw" onclick="doDraw()" disabled>摸牌</button>
-                <button class="btn-discard" id="btn-discard" onclick="doDiscard()" disabled>出牌</button>
+                <button class="btn-draw" id="btn-draw" onclick="doDraw()">摸牌</button>
+                <button class="btn-action" id="btn-action" onclick="doDiscard()" disabled>出牌</button>
             </div>
-            <button onclick="location.reload()" style="margin-top:15px; background:none; color:#555; font-size:0.7rem; border:1px solid #333;">退出房间</button>
+            
+            <div style="display:flex; justify-content: space-between; margin-top:15px;">
+                <button onclick="doEat()" id="btn-eat" style="padding:8px; font-size:0.7rem; background:#444; color:white; flex:none; width:60px;">吃牌</button>
+                <button onclick="forceReset()" style="background:none; color:#444; font-size:0.6rem; border:1px solid #333; flex:none;">全员重置</button>
+            </div>
         </div>
     </div>
 
 <script>
     const CHARS = "我你他她咱谁们大家的人的了是不都在有没要会想看听写讲说拿走跑去玩笑哭爱恨怕请问谢对起给打找买卖用开关就才又还也只很最真太快慢大中小多多少好坏美丑".split("");
     let client, roomId, myId = "P_" + Math.random().toString(16).slice(2, 8);
-    let state = { p1: null, p2: null, hands: {}, pool: [], turn: "" };
+    let state = { players: [], hands: {}, pool: [], turnIdx: 0 };
     let selectedIdx = -1, hasActioned = false;
 
     function joinGame() {
         roomId = document.getElementById('room-input').value;
         if (!roomId) return;
-        document.getElementById('connect-status').innerText = "正在尝试接入云端服务器...";
         client = mqtt.connect('wss://broker.emqx.io:8084/mqtt');
-
         client.on('connect', () => {
-            client.subscribe("txt_mj_v2_" + roomId);
+            client.subscribe("mj_insert_v4_" + roomId);
             document.getElementById('login-screen').style.display = 'none';
             document.getElementById('game-screen').style.display = 'flex';
             publish('JOIN', { id: myId });
-            document.getElementById('info-text').innerText = "已进入房间，等待同步...";
         });
-
-        client.on('message', (topic, payload) => {
-            const msg = JSON.parse(payload.toString());
-            if (msg.from === myId) return;
-            
-            if (msg.type === 'JOIN') {
-                // 如果我是第一个，我就是 P1
-                if (!state.p1) state.p1 = myId;
-                state.p2 = msg.data.id;
-                publish('SYNC_REQ', state);
-            } else if (msg.type === 'SYNC_REQ' || msg.type === 'UPDATE') {
-                state = msg.data;
-                render();
-            }
-        });
+        client.on('message', (t, p) => handleMessage(JSON.parse(p.toString())));
     }
 
-    // 强制开始函数：如果双方都卡住了，点这个
-    function forceStart() {
-        if (!state.hands[myId]) {
-            state.hands[myId] = Array.from({length:13}, () => CHARS[Math.floor(Math.random()*CHARS.length)]);
+    function handleMessage(msg) {
+        if (msg.type === 'JOIN') {
+            if (!state.players.includes(msg.data.id)) {
+                state.players.push(msg.data.id);
+                if (state.players[0] === myId) {
+                    if (!state.hands[msg.data.id]) {
+                        state.hands[msg.data.id] = Array.from({length:13}, () => CHARS[Math.floor(Math.random()*CHARS.length)]);
+                    }
+                    publish('SYNC', state);
+                }
+            }
+        } else if (msg.type === 'SYNC' || msg.type === 'UPDATE') {
+            state = msg.data;
+            if (!state.hands[myId]) {
+                 state.hands[myId] = Array.from({length:13}, () => CHARS[Math.floor(Math.random()*CHARS.length)]);
+            }
+            render();
         }
-        state.turn = myId; // 强制变回自己的回合
-        publish('UPDATE', state);
-        render();
-        document.getElementById('force-btn').style.display = 'none';
     }
 
     function publish(type, data) {
-        if (client) client.publish("txt_mj_v2_" + roomId, JSON.stringify({ from: myId, type, data }));
+        if (client) client.publish("mj_insert_v4_" + roomId, JSON.stringify({ from: myId, type, data }));
     }
 
     function doDraw() {
-        if (!state.hands[myId]) return;
         state.hands[myId].push(CHARS[Math.floor(Math.random()*CHARS.length)]);
         hasActioned = true;
         render();
     }
 
+    function doEat() {
+        const turnPlayerId = state.players[state.turnIdx];
+        if (turnPlayerId !== myId || hasActioned || state.pool.length === 0) return alert("不可吃牌");
+        state.hands[myId].push(state.pool.pop());
+        hasActioned = true;
+        render();
+    }
+
     function doDiscard() {
-        if (selectedIdx === -1) return;
+        if (selectedIdx === -1) return alert("请先选中要打出的牌");
         const tile = state.hands[myId].splice(selectedIdx, 1)[0];
         state.pool.push(tile);
-        
-        // 尝试寻找对手 ID 切换回合
-        const allPlayers = Object.keys(state.hands);
-        const opponent = allPlayers.find(id => id !== myId);
-        state.turn = opponent || ""; 
-        
-        selectedIdx = -1;
+        state.turnIdx = (state.turnIdx + 1) % state.players.length;
         hasActioned = false;
+        selectedIdx = -1;
         publish('UPDATE', state);
         render();
     }
 
+    // 💡 核心修改：插入逻辑 (Move A to before B)
+    function handleTileClick(i) {
+        const turnPlayerId = state.players[state.turnIdx];
+        const isMyTurn = turnPlayerId === myId;
+
+        if (selectedIdx === -1) {
+            // 第一步：选中
+            selectedIdx = i;
+        } else if (selectedIdx === i) {
+            // 再次点击同一张：取消选中
+            selectedIdx = -1;
+        } else {
+            // 第二步：执行插入逻辑
+            const hand = state.hands[myId];
+            const movedItem = hand.splice(selectedIdx, 1)[0]; // 移出被选中的牌
+            
+            // 如果原本选中的在插入点后面，splice 后索引不变；如果在前面，索引需要相应变化
+            // 但 JavaScript 的 splice 配合新索引会自动处理
+            hand.splice(i, 0, movedItem); 
+            
+            selectedIdx = -1; // 完成后重置
+            if (isMyTurn) publish('UPDATE', state); // 同步到云端
+        }
+        render();
+    }
+
     function render() {
-        const isMyTurn = (state.turn === myId || state.turn === "");
+        const turnPlayerId = state.players[state.turnIdx];
+        const isMyTurn = turnPlayerId === myId;
         const myHand = state.hands[myId] || [];
         
+        document.getElementById('player-list').innerText = `玩家: ${state.players.length} | 回合: ${isMyTurn ? '● 你' : '○ 他人'}`;
+
         const h = document.getElementById('my-hand');
         h.innerHTML = '';
         myHand.forEach((t, i) => {
             const el = document.createElement('div');
             el.className = `tile ${selectedIdx === i ? 'selected' : ''}`;
             el.innerText = t;
-            el.onclick = () => { if(isMyTurn) { selectedIdx = (selectedIdx === i ? -1 : i); render(); }};
+            el.onclick = () => handleTileClick(i);
             h.appendChild(el);
         });
 
@@ -146,14 +184,36 @@
             p.appendChild(d);
         });
 
-        document.getElementById('my-zone').className = `my-side ${isMyTurn ? 'active' : ''}`;
-        document.getElementById('info-text').innerText = isMyTurn ? "🟢 你的回合" : "⚪ 对方正在思考...";
-        document.getElementById('btn-draw').disabled = !isMyTurn || hasActioned;
-        document.getElementById('btn-discard').disabled = !isMyTurn;
+        const zone = document.getElementById('my-zone');
+        const info = document.getElementById('info-text');
         
-        if (myHand.length > 0) {
-            document.getElementById('force-btn').style.display = 'none';
+        if (isMyTurn) {
+            zone.classList.add('active');
+            if (!hasActioned) {
+                zone.classList.add('remind-draw');
+                info.innerHTML = "<span style='color:var(--danger)'>🚨 请先摸牌或吃牌！</span>";
+            } else {
+                zone.classList.remove('remind-draw');
+                info.innerText = "🟢 点击文字可调整位置";
+            }
+        } else {
+            zone.className = 'my-side';
+            info.innerText = "⚪ 等待其他玩家...";
         }
+
+        document.getElementById('btn-draw').disabled = !isMyTurn || hasActioned;
+        document.getElementById('btn-action').disabled = !isMyTurn || !hasActioned;
+        document.getElementById('btn-eat').disabled = !isMyTurn || hasActioned || state.pool.length === 0;
+    }
+
+    function forceReset() {
+        if(!confirm("确定重置吗？")) return;
+        state.pool = [];
+        state.players.forEach(pid => {
+            state.hands[pid] = Array.from({length:13}, () => CHARS[Math.floor(Math.random()*CHARS.length)]);
+        });
+        state.turnIdx = 0;
+        publish('UPDATE', state);
     }
 </script>
 </body>
