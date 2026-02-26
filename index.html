@@ -271,4 +271,31 @@
                 <div class="tile ${selectedIdx===i?'selected':''}" onclick="handleTileClick(${i})">${t}</div>
             `).join("");
             
-            document.getElementById('pool-area').innerHTML = state.pool.map(t => `<div class="tile pool">${t
+            document.getElementById('pool-area').innerHTML = state.pool.map(t => `<div class="tile pool">${t}</div>`).join("");
+            
+            const zone = document.getElementById('my-zone');
+            if (isMyTurn && !isWin) {
+                zone.classList.add('active');
+                document.getElementById('turn-tip').innerText = hasActioned ? "请出牌" : "请摸牌";
+            } else {
+                zone.classList.remove('active');
+                document.getElementById('turn-tip').innerText = isWin ? "已胡牌" : "等待中...";
+            }
+            
+            document.getElementById('btn-draw').disabled = !isMyTurn || hasActioned || isWin;
+            document.getElementById('btn-discard').disabled = !isMyTurn || !hasActioned || isWin || selectedIdx === -1;
+            document.getElementById('btn-win').disabled = !isMyTurn || !hasActioned || isWin;
+            document.getElementById('btn-eat').disabled = !isMyTurn || hasActioned || state.pool.length === 0 || isWin;
+        }
+        if (state.vote) renderVote();
+    }
+
+    function renderVote() {
+        const overlay = document.getElementById('vote-overlay');
+        overlay.style.display = 'flex';
+        document.getElementById('vote-hand-text').innerText = state.vote.hand.join("");
+        document.getElementById('vote-btns').style.display = (state.vote.votes[myId] || state.vote.winner === myId) ? 'none' : 'flex';
+    }
+</script>
+</body>
+</html>
