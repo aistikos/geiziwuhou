@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>文字麻将 V14.5</title>
+    <title>文字麻将 V14.5-Fixed</title>
     <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
     <style>
         :root { --tile-bg: #fff; --accent: #ffeb3b; --danger: #ff4444; --blue: #2196f3; --gold: #ffd700; --ready: #4caf50; }
@@ -23,6 +23,8 @@
         .tile { width: 42px; height: 56px; background: var(--tile-bg); color: #000; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 1.6rem; font-weight: bold; box-shadow: 0 4px #999; border: 3px solid transparent; position: relative; }
         .tile.selected { border-color: var(--blue); transform: translateY(-10px); background: #e3f2fd; }
         .tile.wild { border: 2px solid var(--gold); box-shadow: 0 4px var(--gold); }
+        
+        /* 真正的空白麻将样式 */
         .tile.blank { background: #d0d0d0; box-shadow: 0 4px #888; border: 1px solid #bbb; width: 30px; margin: 0 2px; }
         .tile.blank::after { content: "🀆"; color: rgba(0,0,0,0.1); font-size: 1.2rem; }
 
@@ -46,7 +48,7 @@
 <body>
     <div id="login-screen" class="screen active-screen" style="justify-content: center;">
         <div class="center-box">
-            <h2>🀄️ 文字麻将 V14.5</h2>
+            <h2>🀄️ 文字麻将 V14.5-F</h2>
             <input type="number" id="room-input" placeholder="输入房间号" style="width:85%; padding:15px; margin-bottom:20px; border-radius:12px; border:none; text-align:center; font-size:1.6rem; background:#000; color:#fff;">
             <button onclick="joinGame()" style="background:var(--accent); width:85%;">进入房间</button>
         </div>
@@ -126,12 +128,12 @@
         roomId = document.getElementById('room-input').value;
         if (!roomId) return;
         client = mqtt.connect('wss://broker.emqx.io:8084/mqtt');
-        client.on('connect', () => { client.subscribe(`mj_v14_5_final_${roomId}`); showScreen('lobby-screen'); publish('HELLO', { id: myId }); setTimeout(() => { if (!state) initAsHost(); }, 1200); });
+        client.on('connect', () => { client.subscribe(`mj_v14_5_f_${roomId}`); showScreen('lobby-screen'); publish('HELLO', { id: myId }); setTimeout(() => { if (!state) initAsHost(); }, 1200); });
         client.on('message', (t, p) => handleMessage(JSON.parse(p.toString())));
     }
 
     function initAsHost() { state = { host: myId, players: [{id: myId, ready: false}], gameStarted: false, hands: {}, pool: [], turnIdx: 0, winners: [], vote: null }; renderAll(); }
-    function publish(type, data) { if (client) client.publish(`mj_v14_5_final_${roomId}`, JSON.stringify({ from: myId, type, data })); }
+    function publish(type, data) { if (client) client.publish(`mj_v14_5_f_${roomId}`, JSON.stringify({ from: myId, type, data })); }
 
     function handleMessage(msg) {
         if (msg.type === 'HELLO' && state?.host === myId) {
@@ -169,7 +171,7 @@
         const myHand = state.hands[myId] || [];
         
         document.getElementById('player-status-bar').innerHTML = state.players.map((p, i) => `<div class="status-tag ${state.winners.includes(p.id)?'win':''} ${state.turnIdx===i?'active':''}">P${i+1}</div>`).join("");
-        document.getElementById('turn-tip').innerText = isWin ? "🏆 已胡牌 (本局进行中)" : (isMyTurn ? (hasActioned ? "出牌或断句点胡" : "摸牌时间") : "等待其他玩家...");
+        document.getElementById('turn-tip').innerText = isWin ? "🏆 已胡牌 (观战中)" : (isMyTurn ? (hasActioned ? "出牌或断句点胡" : "摸牌时间") : "等待其他玩家...");
 
         document.getElementById('normal-ctrls').style.display = (isWin || isEditMode) ? 'none' : 'block';
         document.getElementById('edit-ctrls').style.display = isEditMode ? 'block' : 'none';
@@ -235,7 +237,7 @@
 
     function renderVote() {
         document.getElementById('vote-overlay').style.display = 'flex';
-        document.getElementById('vote-title').innerText = `评审 ${state.vote.winnerName} 的句子`;
+        document.getElementById('vote-title').innerText = `评审 ${state.vote.winnerName} 的大作`;
         document.getElementById('vote-hand-text').innerHTML = state.vote.displayArr.map(item => {
             if (item === "BLANK") return `<div class="tile blank"></div>`;
             return `<div class="tile ${item===PANDA?'wild':''}">${item}</div>`;
