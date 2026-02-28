@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>文字麻将 V14.8</title>
+    <title>文字麻将 V14.9</title>
     <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
     <style>
         :root { --tile-bg: #fff; --accent: #ffeb3b; --danger: #ff4444; --blue: #2196f3; --gold: #ffd700; --ready: #4caf50; }
@@ -35,7 +35,6 @@
         button:active { transform: scale(0.95); }
         button:disabled { opacity: 0.1; }
 
-        /* 审牌界面样式 */
         .overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.95); z-index: 1000; display: none; align-items: center; justify-content: center; padding: 10px; box-sizing: border-box; }
         .custom-box { background: #222; border: 2px solid var(--gold); border-radius: 24px; padding: 30px 10px; width: 95%; max-width: 400px; text-align: center; }
         #vote-hand-text { font-size: 1.8rem; color: var(--gold); margin: 20px 0; display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; }
@@ -47,7 +46,7 @@
 <body>
     <div id="login-screen" class="screen active-screen" style="justify-content: center;">
         <div class="center-box">
-            <h2>🀄️ 文字麻将 V14.8</h2>
+            <h2>🀄️ 文字麻将 V14.9</h2>
             <input type="number" id="room-input" placeholder="输入房间号" style="width:85%; padding:15px; margin-bottom:20px; border-radius:12px; text-align:center; font-size:1.6rem; background:#000; color:#fff; border:1px solid #444;">
             <button onclick="joinGame()" style="background:var(--accent); width:85%;">进入房间</button>
         </div>
@@ -123,12 +122,12 @@
         roomId = document.getElementById('room-input').value;
         if (!roomId) return;
         client = mqtt.connect('wss://broker.emqx.io:8084/mqtt');
-        client.on('connect', () => { client.subscribe(`mj_v14_8_${roomId}`); showScreen('lobby-screen'); publish('HELLO', { id: myId }); setTimeout(() => { if (!state) initAsHost(); }, 1200); });
+        client.on('connect', () => { client.subscribe(`mj_v14_9_${roomId}`); showScreen('lobby-screen'); publish('HELLO', { id: myId }); setTimeout(() => { if (!state) initAsHost(); }, 1200); });
         client.on('message', (t, p) => handleMessage(JSON.parse(p.toString())));
     }
 
     function initAsHost() { state = { host: myId, players: [{id: myId, ready: false}], gameStarted: false, hands: {}, pool: [], turnIdx: 0, winners: [], vote: null }; renderAll(); }
-    function publish(type, data) { if (client) client.publish(`mj_v14_8_${roomId}`, JSON.stringify({ from: myId, type, data })); }
+    function publish(type, data) { if (client) client.publish(`mj_v14_9_${roomId}`, JSON.stringify({ from: myId, type, data })); }
 
     function handleMessage(msg) {
         if (msg.type === 'HELLO' && state?.host === myId) {
@@ -218,19 +217,31 @@
     function exitEditMode() { isEditMode = false; breakPoints.clear(); selectedIdx = -1; renderAll(); }
 
     function doWin() {
-        let hand = [...state.hands[myId]];
         if (selectedIdx === -1) return;
-        hand.splice(selectedIdx, 1); 
-        if (hand.length > 13) hand = hand.slice(0, 13);
-
+        
+        // --- 核心修复：真实删除选中的弃牌 ---
+        const originalIdx = selectedIdx; // 记录当前选中的位置
+        state.hands[myId].splice(selectedIdx, 1); 
+        
+        // 容错：如果牌太多，强制截断只留13张
+        if (state.hands[myId].length > 13) state.hands[myId] = state.hands[myId].slice(0, 13);
+        
+        let finalHand = state.hands[myId];
         let finalDisplayArr = [];
-        hand.forEach((char, idx) => {
+        finalHand.forEach((char, idx) => {
             finalDisplayArr.push(char);
-            if (breakPoints.has(idx >= selectedIdx ? idx+1 : idx)) finalDisplayArr.push("BLANK");
+            // 重新计算断句符位置：因为删掉了一张牌，索引会有偏移
+            if (breakPoints.has(idx >= originalIdx ? idx + 1 : idx)) {
+                finalDisplayArr.push("BLANK");
+            }
         });
 
         const pNum = state.players.findIndex(p => p.id === myId) + 1;
+        // 先发送投票请求
         publish('VOTE_START', { winner: myId, winnerName: "P"+pNum, displayArr: finalDisplayArr, votes: {[myId]: 'yes'} });
+        // 再同步更新真实手牌状态，确保胡牌者的界面也更新为13张
+        publish('UPDATE', state);
+        
         exitEditMode();
     }
 
