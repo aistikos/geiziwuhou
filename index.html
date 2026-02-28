@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>文字麻将 V14.9</title>
+    <title>文字麻将 V15.0</title>
     <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
     <style>
         :root { --tile-bg: #fff; --accent: #ffeb3b; --danger: #ff4444; --blue: #2196f3; --gold: #ffd700; --ready: #4caf50; }
@@ -46,7 +46,7 @@
 <body>
     <div id="login-screen" class="screen active-screen" style="justify-content: center;">
         <div class="center-box">
-            <h2>🀄️ 文字麻将 V14.9</h2>
+            <h2>🀄️ 文字麻将 V15.0</h2>
             <input type="number" id="room-input" placeholder="输入房间号" style="width:85%; padding:15px; margin-bottom:20px; border-radius:12px; text-align:center; font-size:1.6rem; background:#000; color:#fff; border:1px solid #444;">
             <button onclick="joinGame()" style="background:var(--accent); width:85%;">进入房间</button>
         </div>
@@ -122,12 +122,12 @@
         roomId = document.getElementById('room-input').value;
         if (!roomId) return;
         client = mqtt.connect('wss://broker.emqx.io:8084/mqtt');
-        client.on('connect', () => { client.subscribe(`mj_v14_9_${roomId}`); showScreen('lobby-screen'); publish('HELLO', { id: myId }); setTimeout(() => { if (!state) initAsHost(); }, 1200); });
+        client.on('connect', () => { client.subscribe(`mj_v15_0_${roomId}`); showScreen('lobby-screen'); publish('HELLO', { id: myId }); setTimeout(() => { if (!state) initAsHost(); }, 1200); });
         client.on('message', (t, p) => handleMessage(JSON.parse(p.toString())));
     }
 
     function initAsHost() { state = { host: myId, players: [{id: myId, ready: false}], gameStarted: false, hands: {}, pool: [], turnIdx: 0, winners: [], vote: null }; renderAll(); }
-    function publish(type, data) { if (client) client.publish(`mj_v14_9_${roomId}`, JSON.stringify({ from: myId, type, data })); }
+    function publish(type, data) { if (client) client.publish(`mj_v15_0_${roomId}`, JSON.stringify({ from: myId, type, data })); }
 
     function handleMessage(msg) {
         if (msg.type === 'HELLO' && state?.host === myId) {
@@ -219,28 +219,29 @@
     function doWin() {
         if (selectedIdx === -1) return;
         
-        // --- 核心修复：真实删除选中的弃牌 ---
-        const originalIdx = selectedIdx; // 记录当前选中的位置
-        state.hands[myId].splice(selectedIdx, 1); 
+        // --- 核心修复：重新实现的删牌逻辑 ---
+        const originalSelectedIdx = selectedIdx;
+        const hand = [...state.hands[myId]]; // 临时克隆
+        hand.splice(originalSelectedIdx, 1); // 丢弃选中的那一颗
         
-        // 容错：如果牌太多，强制截断只留13张
-        if (state.hands[myId].length > 13) state.hands[myId] = state.hands[myId].slice(0, 13);
+        // 最终保留 13 张进入评审
+        const finalHand = hand.slice(0, 13);
         
-        let finalHand = state.hands[myId];
         let finalDisplayArr = [];
         finalHand.forEach((char, idx) => {
             finalDisplayArr.push(char);
-            // 重新计算断句符位置：因为删掉了一张牌，索引会有偏移
-            if (breakPoints.has(idx >= originalIdx ? idx + 1 : idx)) {
+            // 补偿索引：如果断句位置在删掉的牌之后，需要减 1
+            if (breakPoints.has(idx >= originalSelectedIdx ? idx+1 : idx)) {
                 finalDisplayArr.push("BLANK");
             }
         });
 
+        // 修改真实数据，确保同步后手牌确实变少了
+        state.hands[myId] = finalHand;
+
         const pNum = state.players.findIndex(p => p.id === myId) + 1;
-        // 先发送投票请求
         publish('VOTE_START', { winner: myId, winnerName: "P"+pNum, displayArr: finalDisplayArr, votes: {[myId]: 'yes'} });
-        // 再同步更新真实手牌状态，确保胡牌者的界面也更新为13张
-        publish('UPDATE', state);
+        publish('UPDATE', state); // 广播新状态，确保所有人的界面都看到你胡牌后的 13 张
         
         exitEditMode();
     }
