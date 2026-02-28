@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>文字麻将 V15.3</title>
+    <title>文字麻将 V15.4</title>
     <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
     <style>
         :root { --tile-bg: #fff; --accent: #ffeb3b; --danger: #ff4444; --blue: #2196f3; --gold: #ffd700; --ready: #4caf50; }
@@ -13,7 +13,7 @@
         .center-box { background: #222; padding: 25px; border-radius: 20px; text-align: center; border: 1px solid #444; }
         
         #player-status-bar { display: flex; justify-content: space-around; padding: 10px; background: rgba(255,255,255,0.1); border-radius: 12px; margin-bottom: 20px; }
-        .status-tag { padding: 4px 10px; border-radius: 6px; position: relative; opacity: 0.6; font-size: 0.8rem; }
+        .status-tag { padding: 4px 10px; border-radius: 6px; position: relative; opacity: 0.6; font-size: 0.8rem; border: 1px solid transparent; }
         .status-tag.active { opacity: 1; background: var(--accent); color: #000; font-weight: bold; }
         .status-tag.win { opacity: 1; border: 2px solid var(--gold); color: var(--gold); background: rgba(255,215,0,0.2); }
         .status-tag.win::after { content: "WIN"; position: absolute; top: -12px; right: -5px; background: var(--gold); color: #000; font-size: 0.6rem; padding: 1px 3px; border-radius: 3px; }
@@ -23,14 +23,13 @@
         .tile { width: 42px; height: 56px; background: var(--tile-bg); color: #000; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 1.6rem; font-weight: bold; box-shadow: 0 4px #999; border: 3px solid transparent; position: relative; }
         .tile.selected { border-color: var(--blue); transform: translateY(-5px); }
         .tile.wild { border: 2px solid var(--gold); box-shadow: 0 4px var(--gold); }
-        .tile.blank { background: #d0d0d0; width: 25px; height: 40px; margin: 0 2px; }
 
-        .my-side { background: #222; border: 2px solid #444; padding: 20px 15px; border-radius: 24px; }
+        .my-side { background: #222; border: 2px solid #444; padding: 20px 15px; border-radius: 24px; position: relative; }
         .hand { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; min-height: 120px; }
         
         .btn-row { display: flex; gap: 8px; margin-top: 15px; }
         button { border: none; border-radius: 12px; font-weight: bold; cursor: pointer; flex: 1; height: 50px; font-size: 1rem; }
-        button:disabled { opacity: 0.2; }
+        button:disabled { opacity: 0.1 !important; }
 
         .overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.95); z-index: 1000; display: none; align-items: center; justify-content: center; padding: 10px; box-sizing: border-box; }
         .win-box { background: #222; border: 2px solid var(--gold); border-radius: 24px; padding: 20px 10px; width: 95%; max-width: 450px; text-align: center; }
@@ -39,7 +38,7 @@
 <body>
     <div id="login-screen" class="screen active-screen" style="justify-content: center;">
         <div class="center-box">
-            <h2>🀄️ 文字麻将 V15.3</h2>
+            <h2>🀄️ 文字麻将 V15.4</h2>
             <input type="number" id="room-input" placeholder="输入房间号" style="width:80%; padding:15px; border-radius:12px; font-size:1.5rem; text-align:center;">
             <button onclick="joinGame()" style="background:var(--accent); width:85%; margin-top:20px;">进入房间</button>
         </div>
@@ -58,33 +57,32 @@
         <div id="player-status-bar"></div>
         <div id="pool-area"></div>
         <div class="my-side">
-            <div id="turn-tip" style="text-align:center; color:var(--accent); margin-bottom:10px;"></div>
+            <div id="turn-tip" style="text-align:center; color:var(--accent); margin-bottom:10px; font-weight:bold;"></div>
             <div class="hand" id="my-hand"></div>
             <div class="btn-row" id="ctrl-btns">
                 <button id="btn-draw" onclick="doDraw()" style="background:var(--accent)">摸牌</button>
                 <button id="btn-eat" onclick="doEat()" style="background:var(--ready); color:white;">吃牌</button>
-                <button id="btn-discard" onclick="doDiscard()" style="background:var(--blue); color:white;">出牌</button>
+                <button id="btn-discard" onclick="doDiscard()" style="background:var(--blue); color:white;">弃牌</button>
                 <button id="btn-win" onclick="openWinDialog()" style="background:var(--gold)">胡！</button>
             </div>
-            <div id="already-win" style="display:none; text-align:center; color:var(--gold); padding:15px; border:1px dashed var(--gold); border-radius:12px; margin-top:10px;">🏆 您已胡牌，正在审牌</div>
+            <div id="win-lock-msg" style="display:none; text-align:center; color:var(--gold); padding:20px; font-weight:bold;">🏆 您已胡牌，请审阅他人</div>
         </div>
     </div>
 
     <div id="win-dialog" class="overlay">
         <div class="win-box">
-            <h2 style="color:var(--gold); margin-bottom:5px;">选一张牌弃掉</h2>
-            <p style="font-size:0.8rem; color:#aaa;">点选一张牌使其“变灰”作为弃牌，其余 13 张胡</p>
+            <h3 style="color:var(--gold);">请点选一张不要的牌</h3>
             <div id="edit-hand" class="hand" style="margin:20px 0;"></div>
             <div class="btn-row">
                 <button onclick="closeWinDialog()" style="background:#555; color:white;">取消</button>
-                <button id="confirm-win-btn" onclick="submitWin()" style="background:var(--gold)" disabled>确认胡牌并发起评审</button>
+                <button id="confirm-win-btn" onclick="submitWin()" style="background:var(--gold)" disabled>确认胡牌</button>
             </div>
         </div>
     </div>
 
     <div id="vote-overlay" class="overlay">
         <div class="win-box">
-            <h2 id="vote-title" style="color:var(--gold);">评审</h2>
+            <h3 id="vote-title" style="color:var(--gold);"></h3>
             <div id="vote-hand-text" class="hand" style="margin:20px 0;"></div>
             <div id="vote-btns">
                 <div class="btn-row">
@@ -92,7 +90,7 @@
                     <button onclick="submitVote('no')" style="background:var(--danger); color:white;">狗屁不通！</button>
                 </div>
             </div>
-            <p id="vote-wait" style="display:none; color:#aaa; margin-top:10px;">已投票，等待结果...</p>
+            <p id="vote-wait" style="display:none; color:#aaa; margin-top:15px;">已投票，等待结果...</p>
         </div>
     </div>
 
@@ -110,12 +108,12 @@
         roomId = document.getElementById('room-input').value;
         if (!roomId) return;
         client = mqtt.connect('wss://broker.emqx.io:8084/mqtt');
-        client.on('connect', () => { client.subscribe(`mj_v15_3_${roomId}`); showScreen('lobby-screen'); publish('HELLO', { id: myId }); setTimeout(() => { if (!state) initAsHost(); }, 1200); });
+        client.on('connect', () => { client.subscribe(`mj_v15_4_${roomId}`); showScreen('lobby-screen'); publish('HELLO', { id: myId }); setTimeout(() => { if (!state) initAsHost(); }, 1200); });
         client.on('message', (t, p) => handleMessage(JSON.parse(p.toString())));
     }
 
     function initAsHost() { state = { host: myId, players: [{id: myId, ready: false}], gameStarted: false, hands: {}, pool: [], turnIdx: 0, winners: [], vote: null }; renderAll(); }
-    function publish(type, data) { if (client) client.publish(`mj_v15_3_${roomId}`, JSON.stringify({ from: myId, type, data })); }
+    function publish(type, data) { if (client) client.publish(`mj_v15_4_${roomId}`, JSON.stringify({ from: myId, type, data })); }
 
     function handleMessage(msg) {
         if (msg.type === 'HELLO' && state?.host === myId) {
@@ -123,13 +121,13 @@
             publish('SYNC', state);
         } else if (msg.type === 'SYNC' || msg.type === 'UPDATE') {
             state = msg.data;
-            document.getElementById('vote-overlay').style.display = state.vote ? 'flex' : 'none';
             renderAll();
         } else if (msg.type === 'VOTE_START') { state.vote = msg.data; renderVote(); }
         else if (msg.type === 'VOTE_SUBMIT' && state?.host === myId && state.vote) {
             state.vote.votes[msg.from] = msg.data.choice;
             if (Object.keys(state.vote.votes).length >= state.players.length) {
-                if (Object.values(state.vote.votes).filter(v => v === 'yes').length > state.players.length / 2) {
+                const yesCount = Object.values(state.vote.votes).filter(v => v === 'yes').length;
+                if (yesCount > state.players.length / 2) {
                     if (!state.winners.includes(state.vote.winner)) state.winners.push(state.vote.winner);
                     if (state.players[state.turnIdx].id === state.vote.winner) moveToNextPlayer();
                 }
@@ -142,20 +140,22 @@
         if (!state) return;
         if (!state.gameStarted) {
             showScreen('lobby-screen');
-            document.getElementById('player-list').innerHTML = state.players.map((p, i) => `<div style="color:${p.id===myId?'var(--accent)':'#fff'}">玩家 P${i+1} - ${p.ready?'已准备':'未准备'}</div>`).join("");
+            document.getElementById('player-list').innerHTML = state.players.map((p, i) => `<div>P${i+1} - ${p.ready?'已准备':'未准备'}</div>`).join("");
             document.getElementById('start-btn').style.display = (state.host === myId) ? 'block' : 'none';
             document.getElementById('start-btn').disabled = !state.players.every(p => p.ready);
             return;
         }
         showScreen('game-screen');
-        const isMyTurn = state.players[state.turnIdx].id === myId;
         const isWin = state.winners.includes(myId);
-        
+        const isMyTurn = state.players[state.turnIdx].id === myId;
+
         document.getElementById('player-status-bar').innerHTML = state.players.map((p, i) => `<div class="status-tag ${state.winners.includes(p.id)?'win':''} ${state.turnIdx===i?'active':''}">P${i+1}</div>`).join("");
-        document.getElementById('turn-tip').innerText = isWin ? "🏆 已胡牌" : (isMyTurn ? (hasActioned ? "请弃牌或胡牌" : "到你了，请摸/吃") : "等待中...");
+        document.getElementById('turn-tip').innerText = isWin ? "🏆 恭喜胡牌" : (isMyTurn ? (hasActioned ? "请出牌或胡牌" : "到你了，请摸/吃") : "等待他人...");
         
+        // 关键锁死：一旦胡牌，隐藏所有操作区
         document.getElementById('ctrl-btns').style.display = isWin ? 'none' : 'flex';
-        document.getElementById('already-win').style.display = isWin ? 'block' : 'none';
+        document.getElementById('win-lock-msg').style.display = isWin ? 'block' : 'none';
+        document.getElementById('vote-overlay').style.display = state.vote ? 'flex' : 'none';
 
         const myHand = state.hands[myId] || [];
         document.getElementById('my-hand').innerHTML = myHand.map((t, i) => `<div class="tile ${selectedIdx===i?'selected':''} ${t===PANDA?'wild':''}" onclick="handleHandClick(${i})">${t}</div>`).join("");
@@ -169,8 +169,8 @@
 
     function handleHandClick(i) {
         if (state.winners.includes(myId)) return;
-        if (selectedIdx === -1) selectedIdx = i;
-        else if (selectedIdx === i) selectedIdx = -1;
+        if (selectedIdx === -1) { selectedIdx = i; }
+        else if (selectedIdx === i) { selectedIdx = -1; }
         else {
             const tile = state.hands[myId].splice(selectedIdx, 1)[0];
             state.hands[myId].splice(i, 0, tile);
@@ -189,27 +189,29 @@
     function renderWinEdit() {
         const h = state.hands[myId];
         document.getElementById('edit-hand').innerHTML = h.map((t, i) => 
-            `<div class="tile ${t===PANDA?'wild':''}" style="${tempDiscardIdx===i?'opacity:0.3; background:#555;':''}" onclick="selectDiscard(${i})">${t}</div>`
+            `<div class="tile ${t===PANDA?'wild':''}" style="${tempDiscardIdx===i?'background:var(--danger);color:#fff':''}" onclick="setTempDiscard(${i})">${t}</div>`
         ).join("");
         document.getElementById('confirm-win-btn').disabled = tempDiscardIdx === -1;
     }
 
-    function selectDiscard(i) { tempDiscardIdx = i; renderWinEdit(); }
+    function setTempDiscard(i) { tempDiscardIdx = i; renderWinEdit(); }
     function closeWinDialog() { document.getElementById('win-dialog').style.display = 'none'; }
 
     function submitWin() {
         let hand = [...state.hands[myId]];
-        hand.splice(tempDiscardIdx, 1); // 真正去掉选中的牌
+        hand.splice(tempDiscardIdx, 1); 
         const final13 = hand.slice(0, 13);
         
-        state.hands[myId] = final13; // 更新本地数据
-        const pNum = state.players.findIndex(p => p.id === myId) + 1;
+        // 核心：清空当前动作状态，防止回流到弃牌逻辑
+        hasActioned = false;
+        selectedIdx = -1;
+        state.hands[myId] = final13; 
         
+        const pNum = state.players.findIndex(p => p.id === myId) + 1;
         publish('VOTE_START', { winner: myId, winnerName: "P"+pNum, displayArr: final13, votes: {[myId]: 'yes'} });
         publish('UPDATE', state);
         
         closeWinDialog();
-        selectedIdx = -1;
     }
 
     function doDraw() { state.hands[myId].push(CHARS[Math.floor(Math.random()*CHARS.length)]); hasActioned = true; publish('UPDATE', state); }
@@ -223,8 +225,8 @@
     }
 
     function renderVote() {
-        document.getElementById('vote-overlay').style.display = 'flex';
-        document.getElementById('vote-title').innerText = `评审 ${state.vote.winnerName} 的大作`;
+        if (!state.vote) return;
+        document.getElementById('vote-title').innerText = `评审 ${state.vote.winnerName} 的作品`;
         document.getElementById('vote-hand-text').innerHTML = state.vote.displayArr.map(t => `<div class="tile ${t===PANDA?'wild':''}">${t}</div>`).join("");
         const voted = !!state.vote.votes[myId];
         document.getElementById('vote-btns').style.display = voted ? 'none' : 'block';
